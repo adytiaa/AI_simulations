@@ -1,0 +1,1431 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+% ============================================================
+% Physics-informed and agentic AI for accelerating CFD
+% Expanded deck (detailed explanations). Sources:
+%   - classical physics-informed learning (from CFD_QAI.tex, quantum/hybrid removed)
+%   - crystal-growth case study (from main_nerips.tex)
+%   - agentic CFD / AutoFOAM (from presentation.tex)
+%
+% IMAGES: no images are embedded. Every figure is a dashed placeholder
+% that shows the file name it expects. Put the PNG into  images/  with
+% exactly that name and recompile -- the placeholder is replaced automatically.
+% ============================================================
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\graphicspath{{images/}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+% ---------- colours ----------
+\definecolor{navy}{HTML}{173B4D}
+\definecolor{teal}{HTML}{2C6975}
+\definecolor{mint}{HTML}{E9F4F2}
+\definecolor{orange}{HTML}{D9822B}
+\definecolor{lightorange}{HTML}{FBEBDA}
+\definecolor{lightgray}{HTML}{F3F5F6}
+\definecolor{midgray}{HTML}{68757A}
+\definecolor{dark}{HTML}{1F2528}
+\definecolor{alertred}{HTML}{B5473A}
+
+\setbeamercolor{normal text}{fg=dark,bg=white}
+\setbeamercolor{structure}{fg=teal}
+\setbeamercolor{frametitle}{fg=navy,bg=white}
+\setbeamercolor{title}{fg=navy}
+\setbeamercolor{footline}{fg=midgray,bg=white}
+\setbeamercolor{block title}{fg=white,bg=navy}
+\setbeamercolor{block body}{fg=dark,bg=lightgray}
+\setbeamercolor{block title alerted}{fg=white,bg=orange}
+\setbeamercolor{block body alerted}{fg=dark,bg=lightorange}
+\setbeamercolor{block title example}{fg=white,bg=teal}
+\setbeamercolor{block body example}{fg=dark,bg=mint}
+
+\setbeamerfont{frametitle}{size=\large,series=\bfseries}
+\setbeamerfont{block title}{size=\small,series=\bfseries}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\color{teal}\small$\blacktriangleright$}
+\setbeamertemplate{itemize subitem}{\color{orange}\scriptsize$\blacktriangleright$}
+\setbeamertemplate{section in toc}[sections numbered]
+\setbeamercolor{section in toc}{fg=navy}
+
+% ---------- frame title: small section tag + title + accent rule ----------
+\setbeamertemplate{frametitle}{
+  \vspace{0.12cm}
+  \begin{beamercolorbox}[wd=\paperwidth,leftskip=0.65cm,rightskip=0.65cm]{frametitle}
+    {\fontsize{7}{8}\selectfont\color{orange}\bfseries\MakeUppercase{\insertsection}\par}
+    \vspace{0.02cm}
+    \usebeamerfont{frametitle}\insertframetitle\par
+    \vspace{0.03cm}
+    {\color{orange}\rule{0.65cm}{1.6pt}}
+  \end{beamercolorbox}
+}
+
+% ---------- footer ----------
+\setbeamertemplate{footline}{
+  \leavevmode
+  \hbox{
+    \begin{beamercolorbox}[wd=.82\paperwidth,ht=0.35cm,dp=0.15cm,leftskip=.65cm]{footline}
+      \scriptsize Physics-informed and agentic AI for accelerating CFD
+    \end{beamercolorbox}
+    \begin{beamercolorbox}[wd=.18\paperwidth,ht=0.35cm,dp=0.15cm,rightskip=.65cm plus1fil]{footline}
+      \scriptsize\insertframenumber
+    \end{beamercolorbox}
+  }
+}
+
+% ---------- helper macros ----------
+\newcommand{\source}[1]{\vspace{0.05cm}{\scriptsize\color{midgray}Source: #1}}
+\newcommand{\smallnote}[1]{{\scriptsize\color{midgray}#1}}
+\newcommand{\key}[1]{\textcolor{teal}{\textbf{#1}}}
+\newcommand{\highlight}[1]{\textcolor{orange}{\textbf{#1}}}
+
+% \figbox{file-name-without-.png}{width}{height}{short description}
+% If images/<file-name>.png exists it is inserted; otherwise a dashed placeholder is drawn.
+\newcommand{\figbox}[4]{%
+  \IfFileExists{images/#1.png}{%
+    \includegraphics[width=#2,height=#3,keepaspectratio]{images/#1.png}%
+  }{%
+    \begin{tikzpicture}
+      \node[draw=midgray,dashed,thick,fill=lightgray,minimum width=#2,minimum height=#3,
+            align=center,text=midgray,font=\scriptsize,inner sep=3pt,text width=#2-6pt]
+        {\textbf{[IMAGE PLACEHOLDER]}\\[1pt]\texttt{images/#1.png}\\[1pt]\textit{#4}};
+    \end{tikzpicture}%
+  }%
+}
+
+% ---------- title data ----------
+\title{Physics-Informed and Agentic AI\\for Accelerating CFD}
+\author{A Seshaditya}
+\institute{QuaSi}
+\date{}
+
+% extra helper: small labelled equation box
+\newcommand{\eqbox}[1]{\begin{center}\colorbox{mint}{\parbox{0.92\linewidth}{\centering #1}}\end{center}}
+\begin{document}
+
+% ============================================================ TITLE
+\begin{frame}[plain]
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[navy] (current page.south west) rectangle (current page.north east);
+    \fill[teal] (current page.south east) rectangle ([xshift=-0.20\paperwidth]current page.north east);
+    \fill[orange] ([xshift=-0.20\paperwidth]current page.south east) rectangle ([xshift=-0.195\paperwidth]current page.north east);
+  \end{tikzpicture}
+  \vspace{0.9cm}
+  \begin{minipage}[t][0.78\textheight]{0.74\textwidth}
+    \raggedright
+    {\color{white}\fontsize{22}{27}\selectfont\bfseries Physics-Informed and\\Agentic AI for Accelerating\\CFD Simulations\par}
+    \vspace{0.45cm}
+    {\color{white!80}\large From PINNs and neural operators\\to autonomous OpenFOAM workflows\par}
+    \vfill
+    {\color{white}\large A Seshaditya\\[1mm]QuaSi\par}
+  \end{minipage}
+\end{frame}
+
+% ============================================================ AGENDA
+\begin{frame}{Agenda}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{block}{01 \quad Motivation}
+Why CFD is expensive and where AI can help.
+\end{block}
+\begin{block}{02 \quad Physics-informed surrogates}
+PINNs $\rightarrow$ neural operators $\rightarrow$ geometry-aware models.
+\end{block}
+\column{0.48\textwidth}
+\begin{block}{03 \quad Evidence}
+Crystal-growth benchmarks: what improves accuracy, and what does not.
+\end{block}
+\begin{block}{04 \quad Agentic CFD}
+AutoFOAM: automate case set-up, execution and self-correction.
+\end{block}
+\end{columns}
+\vfill
+\centering
+\small\color{midgray}Integration, limitations and validation roadmap follow.
+
+\end{frame}
+
+\begin{frame}{Glossary: terms used in this talk}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{>{\bfseries}l L >{\bfseries}l L}
+\toprule
+CFD & Computational fluid dynamics: numerically solving fluid-flow equations. &
+PDE & Partial differential equation, e.g.\ Navier--Stokes or heat equation.\\
+PINN & Neural network trained so its output satisfies the PDE. &
+Residual & How far a candidate solution is from satisfying the PDE at a point.\\
+BC / IC & Boundary / initial conditions (values imposed at edges / at $t=0$). &
+Autodiff & Automatic differentiation: exact derivatives of the network output.\\
+Operator & Map from a function (input field) to a function (solution). &
+NRMSE & RMSE divided by the standard deviation of the target field.\\
+RANS & Reynolds-averaged Navier--Stokes (time-averaged turbulence model). &
+OOD & Out-of-distribution: test cases never seen in training.\\
+RAG & Retrieval-augmented generation (look up verified examples). &
+SFT / DPO & Supervised fine-tuning / Direct Preference Optimisation.\\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+% ============================================================
+\section{Motivation}
+% ============================================================
+
+\begin{frame}{CFD is accurate, but expensive}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{block}{Why accelerate?}
+\begin{itemize}\footnotesize
+  \item \textbf{High cost per simulation:} high-fidelity, multi-physics CFD needs fine meshes and long runs.
+  \item \textbf{The real cost is the sweep, not one run:} design studies vary pull rate, rotation rates, thermal boundary conditions, geometry\ldots{} each point is a new simulation.
+  \item \textbf{Multi-physics coupling} (flow + heat + particles) adds model complexity.
+  \item \textbf{Set-up expertise:} a valid case needs deep solver knowledge.
+\end{itemize}
+\end{block}
+\vspace{0.1cm}
+{\small\key{Goal:} keep the governing physics, cut the cost, and make set-up accessible.}
+
+\column{0.45\textwidth}
+\centering
+\figbox{cz-process-schematic}{\linewidth}{3.8cm}{Silicon crystal-growth (CZ) process schematic: crucible, melt, crystal, rotation, heater}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Application focus: two demanding CFD settings}
+\begin{columns}[T,onlytextwidth]
+\column{0.49\textwidth}
+\begin{block}{Silicon crystal growth (Czochralski, CZ)}
+\begin{itemize}\small
+  \item A seed crystal is pulled from molten silicon in a rotating crucible.
+  \item Couples heat transfer, melt convection, pressure variation and rotating boundaries.
+  \item The resulting thermal and flow fields largely determine crystal quality.
+\end{itemize}
+\end{block}
+\centering
+\figbox{cz-furnace-fields}{\linewidth}{2.5cm}{CZ melt flow / temperature field}
+
+\column{0.49\textwidth}
+\begin{block}{Cryogenic / hydrogen systems}
+\begin{itemize}\small
+  \item Design-oriented CFD for complex flow and thermal conditions.
+  \item Faster surrogates support iterative design.
+  \item Relevant to the wider space and energy use cases.
+\end{itemize}
+\end{block}
+\centering
+\figbox{cryogenic-system}{\linewidth}{2.5cm}{Cryogenic tank / hydrogen system CFD}
+\end{columns}
+\end{frame}
+
+\begin{frame}{What the CFD has to solve (CZ melt)}
+\begin{columns}[T,onlytextwidth]
+\column{0.56\textwidth}
+\begin{block}{Governing physics in the reference model}
+\begin{itemize}\small
+  \item Incompressible Navier--Stokes: momentum + continuity.
+  \item Energy equation for temperature $T$.
+  \item \textbf{Boussinesq buoyancy}: density varies with $T$ only in the buoyancy term, which drives natural convection.
+  \item \textbf{Rotation:} crystal and crucible walls impose azimuthal velocity $u_\theta=\omega r$.
+\end{itemize}
+\end{block}
+\begin{block}{Unknowns per point $(r,z)$}
+\small $u_r,\;u_z,\;u_\theta$ (velocity), $p$ (pressure), $T$ (temperature): five coupled fields.
+\end{block}
+\column{0.40\textwidth}
+\centering
+\figbox{cz-domain-bcs}{\linewidth}{4.9cm}{2D axisymmetric melt domain with boundary conditions: rotating walls, slip free surface, hot wall, crucible bottom}
+\end{columns}
+\end{frame}
+
+\begin{frame}{The technical story}
+\centering
+\begin{tikzpicture}[
+  node distance=0.5cm,
+  box/.style={rounded corners,draw=teal,fill=mint,minimum width=2.9cm,minimum height=1.05cm,align=center,font=\small},
+  arr/.style={-{Latex[length=2mm]},very thick,draw=orange}
+]
+\node[box] (cfd) {High-fidelity\\CFD};
+\node[box,right=of cfd] (pinn) {Physics-informed\\neural networks};
+\node[box,right=of pinn] (op) {Neural operators,\\geometry awareness};
+\node[box,right=of op,fill=lightorange,draw=orange] (ag) {Agentic\\CFD automation};
+\draw[arr] (cfd)--(pinn); \draw[arr] (pinn)--(op); \draw[arr] (op)--(ag);
+\node[below=0.4cm of cfd,align=center,text width=3.0cm,font=\footnotesize]{Accurate but slow and expertise-heavy};
+\node[below=0.4cm of pinn,align=center,text width=3.0cm,font=\footnotesize]{Encode governing equations and conditions in the loss};
+\node[below=0.4cm of op,align=center,text width=3.0cm,font=\footnotesize]{Generalise across parameters, fields and geometries};
+\node[below=0.4cm of ag,align=center,text width=3.0cm,font=\footnotesize]{LLM agent turns natural language into runnable OpenFOAM cases};
+\end{tikzpicture}
+
+\vfill
+\key{Research question:} how can physics-aware surrogates and autonomous case generation
+together make CFD faster and more accessible, without losing physical validity?
+\end{frame}
+
+% ============================================================
+\section{Physics-informed learning}
+% ============================================================
+
+\begin{frame}{Physics-Informed Neural Networks (PINNs): the idea}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Core idea}
+\small A neural network $\hat u_\theta$ represents the solution. Training penalises both \textbf{data mismatch} and \textbf{physics violations}.
+\end{block}
+\begin{enumerate}\small
+  \item Sample points in the domain and on its boundaries.
+  \item Use automatic differentiation to evaluate PDE residuals.
+  \item Optimise one objective combining PDE, BC and IC terms.
+\end{enumerate}
+\begin{exampleblock}{Why it is attractive}
+\small Physics enters training directly, reducing reliance on labelled solution data.
+\end{exampleblock}
+\source{Raissi, Perdikaris \& Karniadakis (2019)}
+\column{0.46\textwidth}
+\centering
+\figbox{pinn-concept}{\linewidth}{3.6cm}{PINN concept: coordinates $\rightarrow$ network $\rightarrow$ field; autodiff gives residuals; loss = PDE + BC + IC}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{PINN methodology: physics becomes part of the objective}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.54\textwidth}
+\[
+\boxed{
+L_{\rm total}=L_{\rm PDE}+L_{\rm BC}+L_{\rm IC}+\lambda L_{\rm SAL}
+}
+\]
+\begin{itemize}\small
+  \item $L_{\rm PDE}$: governing-equation residual.
+  \item $L_{\rm BC},L_{\rm IC}$: boundary and initial-condition mismatch.
+  \item $\lambda$: relative weighting of an additional term.
+\end{itemize}
+\vspace{2mm}
+\begin{alertblock}{The central issue}
+\small The \textbf{weights matter}. A smaller weighted loss does not necessarily mean a more accurate solution.
+\end{alertblock}
+\column{0.43\textwidth}
+\centering
+\figbox{pinn-loss-diagram}{\linewidth}{4.0cm}{PINN loss composition / training workflow}
+\end{columns}
+\source{Raissi et al. (2019); Wang, Teng \& Perdikaris (2021)}
+
+\end{frame}
+
+\begin{frame}{Why PINN training is not automatically stable}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Why optimisation can fail}
+\begin{itemize}\small
+  \item PDE and constraint terms can have very different gradient scales.
+  \item Stiff or competing terms make the loss landscape difficult to optimise.
+  \item A single aggregate loss can hide a badly satisfied constraint.
+\end{itemize}
+\end{block}
+\column{0.46\textwidth}
+\begin{exampleblock}{Implication for this study}
+\small
+Compare methods using:
+\begin{enumerate}\small
+  \item each loss component;
+  \item an external solution error when a reference exists;
+  \item physical validation where possible.
+\end{enumerate}
+\end{exampleblock}
+\centering
+\figbox{pinn-training-stability}{\linewidth}{2.4cm}{Illustration of competing loss terms / gradient imbalance}
+\end{columns}
+\source{Wang, Teng \& Perdikaris (2021); Krishnapriyan et al. (2021)}
+
+\end{frame}
+
+\begin{frame}{From PINNs to neural operators}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{From one solution to a solution family}
+\small
+A PINN typically solves one PDE instance. A \textbf{neural operator} learns a map
+\[
+\text{inputs: coefficients / geometry / conditions}
+\;\longrightarrow\;
+\text{solution field}.
+\]
+\end{block}
+\begin{itemize}\small
+  \item One model can serve many parameter settings.
+  \item Physics-informed operators add PDE constraints during training.
+  \item This is better aligned with repeated-query CFD workflows.
+\end{itemize}
+\column{0.46\textwidth}
+\centering
+\figbox{pino-architecture}{\linewidth}{5.0cm}{PINO / physics-informed operator: input function $\rightarrow$ operator network $\rightarrow$ solution function, with physics loss}
+\end{columns}
+\source{Kovachki et al. (2023); PI-GANO, Zhong \& Meidani (2024)}
+
+\end{frame}
+
+\begin{frame}{Geometry-aware operators: the next generalisation step}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Why geometry matters}
+\small Real CFD design spaces change both \textbf{parameters} and \textbf{shape}. Geometry-aware operators encode the domain rather than assuming one fixed grid.
+\end{block}
+\begin{itemize}\small
+  \item \textbf{PI-GANO}: physics-informed + geometry-aware operator learning.
+  \item \textbf{GAOT / MAGNO}: attention / graph-based operator learning on irregular geometry.
+\end{itemize}
+\begin{exampleblock}{CFD implication}
+\small The target is not one surrogate for one case, but a reusable solution map across operating conditions and geometries.
+\end{exampleblock}
+\column{0.46\textwidth}
+\centering
+\figbox{geometry-aware-operators}{\linewidth}{4.2cm}{PI-GANO / GAOT architecture overview}
+\end{columns}
+\source{Zhong \& Meidani (2024), arXiv:2408.01600; GAOT/MAGNO (2025)}
+
+\end{frame}
+
+\begin{frame}{Comparing the classical approaches}
+
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{>{\bfseries}l L L L}
+\toprule
+Approach & What it learns & Main advantage & Main caveat \\
+\midrule
+PINN & One PDE solution & Physics constraints & Training stability / scaling \\
+PINO & Solution operator & Reusable across parameters & Needs representative coverage \\
+PI-GANO & Geometry-aware operator & Parameter + geometry generalisation & Geometry encoding / validation \\
+GAOT & Graph / attention operator & Irregular-domain modelling & Cost and validation \\
+\bottomrule
+\end{tabularx}
+\vspace{0.2cm}
+\centering
+\figbox{approach-comparison}{0.7\linewidth}{1.9cm}{Optional: comparison figure / benchmark chart}
+\vfill
+\raggedright\source{Kovachki et al. (2023); Zhong \& Meidani (2024); GAOT/MAGNO (2025)}
+
+\end{frame}
+
+% ============================================================
+\section{Case study: crystal growth}
+% ============================================================
+
+\begin{frame}{Case study overview: two experiments, two questions}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{block}{A. Adaptive PINN training}
+\small
+\textbf{Question:} when loss weights adapt during training, is a lower PDE loss really a better solution?\\[3pt]
+Problems: (1) 1D heat equation with an analytical answer; (2) simplified Czochralski thermal-fluid PINN.\\[3pt]
+Compared: Baseline PINN, GNPINN, AgenticPINN.
+\end{block}
+\column{0.48\textwidth}
+\begin{block}{B. CFD surrogates (Gaussian process)}
+\small
+\textbf{Question:} how well does a surrogate predict a \emph{whole unseen operating condition}, field by field?\\[3pt]
+Data: ANSYS Fluent reference CFD, three one-parameter sweeps.\\[3pt]
+Metric: NRMSE per output field.
+\end{block}
+\end{columns}
+\vspace{0.2cm}
+\begin{alertblock}{Shared message}
+\small Aggregate numbers hide where a model fails. Report component-level losses and field-wise errors.
+\end{alertblock}
+\vspace{0.1cm}
+\smallnote{Work with N.\ Chapagain, R.\ Raj, B.\ Kurisinkal Shine (NeurIPS 2026 Sim2Science workshop).}
+\end{frame}
+
+\begin{frame}{Case study: CFD reference data for Czochralski growth}
+\begin{columns}[T,onlytextwidth]
+\column{0.54\textwidth}
+\begin{block}{Reference CFD}
+\begin{itemize}\footnotesize
+  \item ANSYS Fluent 2026 R1; \textbf{steady, laminar, 2D axisymmetric} melt.
+  \item Incompressible Navier--Stokes + energy, Boussinesq buoyancy, azimuthal velocity from rotation.
+  \item Rotating walls: $u_\theta=\omega r$; free surface non-penetrating and slip; prescribed thermal conditions at free surface and crucible bottom.
+  \item Mesh-independence study $\Rightarrow$ common grid of 8181 nodes.
+  \item Rotational Reynolds numbers are large, so these are \emph{controlled reference cases}, not fully resolved industrial melt flow.
+\end{itemize}
+\end{block}
+\column{0.43\textwidth}
+\centering
+\figbox{cz-cfd-reference}{\linewidth}{4.6cm}{Reference CFD fields (temperature, velocity components) in $(r,z)$}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Three parameter sweeps and the case-wise holdout}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{block}{One-parameter sweeps}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Parameter & Range & Held-out case \\
+\midrule
+$T_{\mathrm{hot}}$ (hot wall) & 1730--1785 K & 1780 K \\
+$\omega_c$ (crucible) & $-10$ to $-1$ rpm & $-4$ rpm \\
+$\omega_s$ (crystal) & 4--20 rpm & 7 rpm \\
+\bottomrule
+\end{tabular}
+\end{block}
+\begin{block}{Surrogate learns}
+\small
+\[(r,z,s)\;\mapsto\;(u_r,u_z,u_\theta,p,T)\]
+\small $s$ is the active process parameter of the sweep.
+\end{block}
+\column{0.45\textwidth}
+\begin{alertblock}{Why a case-wise holdout?}
+\small
+One \emph{entire operating condition} is withheld for testing. This measures generalisation to an unseen process setting, not interpolation between randomly split spatial points of cases already seen.
+\end{alertblock}
+\centering
+\figbox{holdout-schematic}{\linewidth}{2.6cm}{Sweep values on a line; one value held out for test}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Benchmark 1: the 1D heat equation (analytical reference)}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.55\textwidth}
+\[
+\frac{\partial T}{\partial t}=\alpha\frac{\partial^2T}{\partial x^2},
+\quad T(0,t)=T(1,t)=0,\quad T(x,0)=\sin(\pi x)
+\]
+\eqbox{$T_{\rm exact}(x,t)=\sin(\pi x)e^{-\alpha\pi^2t}$}
+\begin{itemize}\small
+  \item $\alpha=1$ in the benchmark.
+  \item Exact solution gives a direct \textbf{field-accuracy} metric.
+  \item This is the control experiment for interpreting PINN losses.
+\end{itemize}
+\begin{alertblock}{Important}
+\small The crystal-growth case has no analytical reference; its losses are constraint diagnostics, not proof of accuracy.
+\end{alertblock}
+\column{0.42\textwidth}
+\centering
+\figbox{heat-equation-exact}{\linewidth}{4.8cm}{Analytical heat-equation solution $T(x,t)$ over $[0,1]^2$}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Adaptive PINN training: what do we compare?}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.56\textwidth}
+\begin{block}{Matched comparison}
+\begin{itemize}\small
+  \item \textbf{Baseline PINN}: fixed unit weights.
+  \item \textbf{GNPINN}: normalises PDE and BC/IC gradients.
+  \item \textbf{AgenticPINN}: rule-based controller adapts the weights.
+\end{itemize}
+\end{block}
+\[
+\mathcal L=\lambda_{\rm PDE}\mathcal L_{\rm PDE}
++\lambda_{\rm BC/IC}\mathcal L_{\rm BC/IC}
+\]
+\begin{exampleblock}{Fair comparison}
+\small Same architecture, optimiser, sampling budget, seed and learning-rate schedule within each experiment.
+\end{exampleblock}
+\column{0.40\textwidth}
+\centering
+\figbox{training-strategies-overview}{\linewidth}{4.0cm}{Three trainers: fixed weights / normalised gradients / adaptive controller}
+\end{columns}
+\vspace{1mm}\smallnote{AgenticPINN here is a rule-based controller; it is distinct from the LLM-based AutoFOAM agent.}
+
+\end{frame}
+
+\begin{frame}{The three strategies in detail}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.32\textwidth}
+\begin{block}{Baseline PINN}
+\footnotesize Fixed unit weights; minimise the combined PDE + BC/IC loss.
+\end{block}
+\column{0.32\textwidth}
+\begin{block}{GNPINN}
+\footnotesize Compute PDE and BC/IC gradients separately, normalise them, then combine.
+\end{block}
+\column{0.32\textwidth}
+\begin{block}{AgenticPINN}
+\footnotesize Monitor gradient norms and update the two loss weights with bounded, smoothed rules.
+\end{block}
+\end{columns}
+\vspace{0.2cm}
+\centering
+\begin{exampleblock}{What changes?}
+\small The network and physics stay fixed; only the \textbf{training objective / gradient balancing} changes.
+\end{exampleblock}
+
+\end{frame}
+
+\begin{frame}{AgenticPINN: the controller rule}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.55\textwidth}
+\footnotesize
+With smoothed gradient norms $\bar g_{\rm PDE}$ and $\bar g_{\rm BC/IC}$:
+\[
+a=\operatorname{clip}\!\left(
+\sqrt{\frac{\bar g_{\rm PDE}+10^{-12}}
+{\bar g_{\rm BC/IC}+10^{-12}}},\,0.8,\,1.25\right)
+\]
+\[
+\lambda_{\rm PDE}\leftarrow\operatorname{clip}(\lambda_{\rm PDE}/a),\qquad
+\lambda_{\rm BC/IC}\leftarrow\operatorname{clip}(\lambda_{\rm BC/IC}a).
+\]
+\begin{itemize}\footnotesize
+  \item Weight changes are bounded; weights remain in $[10^{-2},10^2]$.
+  \item A learning-rate reduction is triggered when progress stalls.
+\end{itemize}
+\column{0.42\textwidth}
+\begin{exampleblock}{Intuition}
+\small Balance the \textbf{gradient influence} of PDE and constraints.
+\end{exampleblock}
+\centering
+\figbox{controller-flow}{\linewidth}{2.6cm}{Controller loop: measure gradient norms $\rightarrow$ update weights $\rightarrow$ train}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Why the weighted total is not a fair score}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{block}{Three different questions}
+\small
+\begin{enumerate}
+  \item Did the optimiser reduce the chosen objective?
+  \item Are all physical constraints satisfied?
+  \item Is the predicted field accurate?
+\end{enumerate}
+\end{block}
+\[
+\mathcal L=\sum_k\lambda_k\mathcal L_k
+\]
+\small If $\lambda_k$ changes between methods, \textbf{weighted totals are not directly comparable}.
+\column{0.44\textwidth}
+\begin{alertblock}{Observed example}
+\small AgenticPINN ends with
+$\lambda_{\rm PDE}=10^2$ and
+$\lambda_{\rm BC/IC}=10^{-2}$.
+\[
+\mathcal L_{\rm total}\approx2.08\times10^{-3}
+\]
+yet the heat-equation relative $L_2$ error is \textbf{1.368}.
+\end{alertblock}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Result: low PDE residual $\neq$ accurate solution}
+
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{l l >{\raggedleft\arraybackslash}X >{\raggedleft\arraybackslash}X >{\raggedleft\arraybackslash}X}
+\toprule
+Problem & Trainer & PDE loss & BC/IC loss & Rel.\ $L_2$ error \\
+\midrule
+Heat & Baseline & $3.96\times10^{-3}$ & $1.15\times10^{-3}$ & $8.43\times10^{-2}$ \\
+Heat & GNPINN & $9.74\times10^{-3}$ & $\mathbf{9.05\times10^{-4}}$ & $\mathbf{5.41\times10^{-2}}$ \\
+Heat & AgenticPINN & $\mathbf{8.22\times10^{-7}}$ & $2.00\times10^{-1}$ & $1.368$ \\
+Crystal & Baseline & $9.26\times10^{-6}$ & $1.63\times10^{-5}$ & -- \\
+Crystal & GNPINN & $1.61\times10^{-5}$ & $1.01\times10^{-4}$ & -- \\
+Crystal & AgenticPINN & $\mathbf{1.14\times10^{-6}}$ & $1.29\times10^{-2}$ & -- \\
+\bottomrule
+\end{tabularx}
+\vspace{0.15cm}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{alertblock}{Main result}
+\footnotesize The smallest PDE residual is \textbf{not} the best field solution.
+\end{alertblock}
+\column{0.48\textwidth}
+\begin{block}{Report instead}
+\footnotesize PDE loss + BC/IC loss + external error whenever a reference exists.
+\end{block}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Heat equation: reading the numbers}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{AgenticPINN}
+\small
+\begin{itemize}
+  \item PDE residual $\downarrow\,\approx4.8\times10^3$ vs baseline.
+  \item BC/IC loss $\uparrow\,\approx173\times$.
+  \item Relative $L_2$ error = \textbf{1.368}.
+\end{itemize}
+\end{block}
+\begin{exampleblock}{Best field accuracy}
+\small GNPINN achieves the lowest relative $L_2$ error: $5.41\times10^{-2}$.
+\end{exampleblock}
+\column{0.47\textwidth}
+\centering
+\figbox{heat-mlp-method-comparison}{\linewidth}{4.0cm}{Analytical vs Baseline / GNPINN / AgenticPINN temperature fields, common axes and colour scale}
+\vspace{1mm}
+\smallnote{Rel.\ $L_2$: baseline $8.43\times10^{-2}$; GNPINN $5.41\times10^{-2}$; AgenticPINN $1.368$.}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Simplified crystal-growth PINN: same trade-off}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Observed trade-off}
+\small
+AgenticPINN reduces the PDE residual by $\approx8.1\times$, but BC/IC loss rises by $\approx792\times$.
+\end{block}
+\begin{alertblock}{Interpretation}
+\small No analytical solution is available, so these numbers show \textbf{constraint satisfaction}, not verified field accuracy.
+\end{alertblock}
+\column{0.47\textwidth}
+\centering
+\figbox{crystal-mlp-fields}{\linewidth}{4.0cm}{Velocity, pressure, temperature at $t=0.20$ for Baseline / GNPINN / AgenticPINN}
+\vspace{1mm}
+\smallnote{Qualitative comparison only; not validated against industrial CFD.}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Why it happens: controller dynamics}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Observed mechanism}
+\small In both experiments the controller drives
+\[
+\lambda_{\rm PDE}\rightarrow10^2,\qquad
+\lambda_{\rm BC/IC}\rightarrow10^{-2}.
+\]
+The resulting weight ratio is $10^4$.
+\end{block}
+\begin{alertblock}{Lesson}
+\small Adaptive weighting can improve one objective while weakening another. \textbf{Control must be paired with external validation.}
+\end{alertblock}
+\column{0.47\textwidth}
+\centering
+\figbox{controller-dynamics}{\linewidth}{4.8cm}{Adaptive loss-weight dynamics: $\lambda_{\mathrm{PDE}}$ and $\lambda_{\mathrm{BC/IC}}$ vs epoch (crystal growth left, heat equation right)}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{CFD surrogate: Gaussian-process set-up}
+\begin{columns}[T,onlytextwidth]
+\column{0.55\textwidth}
+\begin{block}{Model}
+\footnotesize
+\begin{itemize}
+  \item Multi-output GPR for $(r,z,s)\mapsto(u_r,u_z,u_\theta,p,T)$, inputs and targets scaled.
+  \item Kernel: constant $\times$ anisotropic RBF (one length scale per input) $+$ white noise ($10^{-4}$); extra diagonal term $10^{-6}$.
+  \item Kernel hyperparameters are fixed, not optimised during fitting.
+  \item Returns predictive mean and standard deviation, mapped back to physical units.
+\end{itemize}
+\end{block}
+\column{0.42\textwidth}
+\begin{block}{Metric}
+\footnotesize
+\[
+\mathrm{NRMSE}=\frac{\sqrt{\frac1N\sum_i(\hat y_i-y_i)^2}}{\sigma_y}
+\]
+$\sigma_y$: standard deviation of that field in the holdout case. Normalisation lets us compare fields with different units and scales.
+\end{block}
+\begin{exampleblock}{Uncertainty diagnostic}
+\footnotesize Pearson correlation between $|\hat y-y|$ and predictive std; an error-awareness check, not a formal calibration.
+\end{exampleblock}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Result: CFD surrogate accuracy depends on field and sweep}
+\smallnote{Case-study result; see the references slide for supporting literature.}
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{GP surrogates, held-out operating condition (NRMSE)}
+\footnotesize
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Temperature field, by sweep} & \textbf{NRMSE} \\
+\midrule
+Hot-wall temperature & 5.61\% \\
+Crucible rotation    & 6.34\% \\
+Crystal rotation     & 9.58\% \\
+\midrule
+\textbf{Crystal-rotation sweep, by field} & \textbf{NRMSE} \\
+\midrule
+Swirl velocity $u_\theta$ & 2.93\% \\
+Radial velocity $u_r$     & 22.95\% \\
+Axial velocity $u_z$      & 41.46\% \\
+\bottomrule
+\end{tabular}
+\end{block}
+\column{0.47\textwidth}
+\centering
+\figbox{surrogate-nrmse-overview}{\linewidth}{3.0cm}{Field-wise NRMSE for the three holdouts}
+\vspace{1mm}
+
+\begin{alertblock}{Message}
+\footnotesize Temperature is predicted well; meridional velocities ($u_r,u_z$) under crystal rotation are not, while swirl $u_\theta$ is predicted well (2.93\%). Aggregate scores hide this.
+\end{alertblock}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Case study: what we learn}
+\begin{columns}[T,onlytextwidth]
+\column{0.32\textwidth}
+\begin{block}{1. Objective $\ne$ accuracy}
+\small Adaptively weighted objectives are optimisation quantities, not common cross-method accuracy metrics.
+\end{block}
+\column{0.32\textwidth}
+\begin{block}{2. Report components}
+\small Unweighted PDE, BC and IC losses, plus external solution error where available.
+\end{block}
+\column{0.32\textwidth}
+\begin{block}{3. Report per field}
+\small Surrogate error varies strongly by field and by sweep; pooled scores conceal it.
+\end{block}
+\end{columns}
+\vspace{0.3cm}
+\begin{alertblock}{Scope of the claims}
+\small
+Matched comparisons use \textbf{one initialisation and two physics settings}; the conclusions should not be read as universal across adaptive-weighting methods or PDEs. CFD cases are steady, laminar and axisymmetric. Future work: more PDEs, random seeds, adaptive strategies and higher-fidelity crystal-growth models.
+\end{alertblock}
+\end{frame}
+
+% ============================================================
+\section{Agentic CFD with AutoFOAM}
+% ============================================================
+
+\begin{frame}{The OpenFOAM expertise barrier}
+\smallnote{OpenFOAM workflow context; related agentic-CFD work listed on the references slide.}
+\begin{columns}[T,onlytextwidth]
+\column{0.54\textwidth}
+\begin{block}{Why CFD is hard to access}
+\begin{itemize}\footnotesize
+  \item OpenFOAM is powerful and free, with unmatched flexibility.
+  \item Each case needs a dozen or more interlinked \textbf{C++ dictionaries}, a mesh and the right solver.
+  \item Syntax is \textbf{strict and deeply interconnected}: one inconsistent entry stops the run.
+  \item Going from physics idea to working simulation is slow, error-prone and needs scarce expertise.
+\end{itemize}
+\end{block}
+\begin{alertblock}{Where generic LLMs fall short}
+\begin{itemize}\footnotesize
+  \item Invent non-existent OpenFOAM keywords.
+  \item Inconsistent boundary conditions across files.
+  \item Lack physical understanding of flow regimes.
+\end{itemize}
+\end{alertblock}
+\column{0.43\textwidth}
+\begin{exampleblock}{The vision}
+\centering\vspace{3pt}
+\small\textit{``Simulate a turbulent flow over a NACA0012 airfoil at Re$=10^6$''}\\[5pt]
+$\Downarrow$\\[3pt]
+\textbf{Full, convergent OpenFOAM case}\\generated autonomously
+\vspace{3pt}
+\end{exampleblock}
+\centering
+\figbox{openfoam-case-structure}{\linewidth}{1.7cm}{Typical OpenFOAM case tree: 0/, constant/, system/ dictionaries}
+\vspace{1mm}
+
+\smallnote{Related work: FoamGPT, OpenFOAMGPT, Foam-Agent 2.0.}
+\end{columns}
+\end{frame}
+
+\begin{frame}{AutoFOAM at a glance}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{block}{What it is}
+\small A \textbf{self-improving AI agent} (fine-tuned 14B model) that turns a plain-English request into a meshed, configured and \emph{running} OpenFOAM v2412 simulation.
+\end{block}
+\begin{block}{Scope}
+\small
+\begin{itemize}
+  \item \textbf{7 solver families}, \textbf{13 mesh templates} (gmsh).
+  \item No manual CAD or case editing.
+  \item Output is a standard OpenFOAM case you can inspect and edit.
+\end{itemize}
+\end{block}
+\column{0.44\textwidth}
+\begin{exampleblock}{Example request}
+\small\itshape``NACA0012 airfoil, AoA 5$^\circ$, Re$=10^6$, chord$=1$\,m''
+\end{exampleblock}
+\begin{block}{Practicalities}
+\small
+\begin{itemize}
+  \item Runs \textbf{on-premise}: your data stays with you.
+  \item Self-hosted: one GPU ($\ge$24\,GB) + OpenFOAM v2412.
+  \item Python API, interactive REPL and batch runs.
+\end{itemize}
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{AutoFOAM: the eight-stage pipeline}
+
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  stage/.style={rounded corners,draw=teal,fill=mint,minimum width=2.7cm,minimum height=0.9cm,align=center,inner sep=2pt},
+  llm/.style={rounded corners,draw=orange,fill=lightorange,minimum width=2.7cm,minimum height=0.9cm,align=center,inner sep=2pt},
+  arr/.style={-{Latex[length=2mm]},thick,draw=midgray},
+  retry/.style={-{Latex[length=2mm]},thick,dashed,draw=alertred}
+]
+\node[llm] (n1) at (0,0) {1.\ Prompt};
+\node[llm] (n2) at (3.4,0) {2.\ Parameters};
+\node[stage] (n3) at (6.8,0) {3.\ Solver};
+\node[stage] (n4) at (10.2,0) {4.\ Mesh};
+\node[stage] (n5) at (10.2,-1.5) {5.\ Numerics};
+\node[stage] (n6) at (6.8,-1.5) {6.\ Case};
+\node[stage] (n7) at (3.4,-1.5) {7.\ Run};
+\node[stage] (n8) at (0,-1.5) {8.\ Score};
+\draw[arr](n1)--(n2); \draw[arr](n2)--(n3); \draw[arr](n3)--(n4); \draw[arr](n4)--(n5);
+\draw[arr](n5)--(n6); \draw[arr](n6)--(n7); \draw[arr](n7)--(n8);
+\draw[retry](n8.west)--++(-0.6,0)|-(n2.north);
+\node[font=\scriptsize\itshape,text=alertred] at (3.5,-2.55) {retry after failed / low-scoring runs};
+\end{tikzpicture}
+\vspace{0.1cm}
+\begin{columns}[T,onlytextwidth]
+\column{0.31\textwidth}
+\begin{block}{LLM}
+\small Understands intent and extracts parameters.
+\end{block}
+\column{0.31\textwidth}
+\begin{block}{Deterministic code}
+\small Selects solver, writes the case and executes OpenFOAM.
+\end{block}
+\column{0.31\textwidth}
+\begin{block}{Feedback}
+\small Scores the run and uses failures to trigger correction.
+\end{block}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Pipeline walk-through: stages 1--4 (understand and mesh)}
+
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{>{\bfseries}c >{\bfseries}l L}
+\toprule
+\# & Stage & Output \\
+\midrule
+1 & Prompt refine & Explicit, normalised CFD request. \\
+2 & Parameter extraction & Schema-constrained geometry, $Re$, fluid and solver hints. \\
+3 & Solver selection & Deterministic route based on transient / compressible / thermal / multiphase flags. \\
+4 & Mesh & Parameterised gmsh template with consistent OpenFOAM boundary patches. \\
+\bottomrule
+\end{tabularx}
+\vspace{0.15cm}
+\begin{exampleblock}{Design principle}
+\small Use the model for \textbf{language}; use deterministic rules for decisions that affect physics or execution.
+\end{exampleblock}
+
+\end{frame}
+
+\begin{frame}{Pipeline walk-through: stages 5--8 (configure, run, judge)}
+
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{>{\bfseries}c >{\bfseries}l L}
+\toprule
+\# & Stage & Output \\
+\midrule
+5 & Numerical policy & Flow-regime-consistent schemes and turbulence settings. \\
+6 & Case writing & Consistent OpenFOAM dictionaries and boundary conditions. \\
+7 & Run & Solver logs, residuals and execution status. \\
+8 & Score & Convergence, residuals, solver choice, conservation and BC checks. \\
+\bottomrule
+\end{tabularx}
+\vspace{0.15cm}
+\begin{alertblock}{Retry}
+\small Low score, divergence or NaN $\rightarrow$ inspect the solver feedback, correct the case, and rerun.
+\end{alertblock}
+
+\end{frame}
+
+\begin{frame}{Key design choices}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{block}{Constrained parameter extraction}
+\begin{itemize}\small
+  \item \textbf{vLLM} for high-throughput inference.
+  \item \textbf{xgrammar} JSON schema enforces the \texttt{CFDParams} structure, so output is always parseable.
+  \item Output: geometry, $Re$, fluid, solver, turbulence model.
+  \item Regex check of $Re=UL/\nu$ consistency between stated and derived values.
+\end{itemize}
+\end{block}
+\column{0.48\textwidth}
+\begin{block}{Deterministic solver routing}
+\begin{itemize}\small
+  \item Decouples solver choice from the LLM.
+  \item Physics flags: transient, compressible, thermal, multiphase.
+  \item Routes to one of \textbf{7 approved solvers}.
+  \item Avoids LLM bias, e.g.\ \texttt{simpleFoam} for transient vortex shedding.
+\end{itemize}
+\end{block}
+\end{columns}
+\vspace{0.1cm}
+\begin{block}{Design principle}
+\small Use the LLM for language understanding; use rules and code wherever a wrong answer would crash a run or give a wrong physics set-up.
+\end{block}
+\end{frame}
+
+\begin{frame}{The reward: how a run is scored}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{block}{Positive terms}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Criterion & Weight \\
+\midrule
+Convergence & 0.40 \\
+Residual $<10^{-4}$ & 0.20 \\
+Correct solver & 0.10 \\
+Mass conservation & 0.05 \\
+Valid boundary conditions & 0.05 \\
+\bottomrule
+\end{tabular}
+\end{block}
+\begin{alertblock}{Penalties (up to $-0.25$)}
+\small Poor mesh quality, slow runtime, stagnation.
+\end{alertblock}
+\column{0.44\textwidth}
+\begin{exampleblock}{How the score is used}
+\small
+\begin{itemize}
+  \item $r<0.7$: trigger a retry.
+  \item $r\ge0.5$: trajectory accepted into the foundational corpus.
+  \item $r\ge0.65$: live run joins the training pool.
+\end{itemize}
+\end{exampleblock}
+\begin{alertblock}{Known bias}
+\small Reward favours convergence; a converged case can still be physically wrong (see limitations).
+\end{alertblock}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Training data: static corpus + dynamic capture}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{block}{Foundational knowledge corpus}
+\begin{itemize}\footnotesize
+  \item \textbf{402 rows} of expert OpenFOAM trajectories.
+  \item 252 unique prompts across all solver types and geometries.
+  \item Accepted trajectories: score $r\ge0.5$.
+\end{itemize}
+\end{block}
+\column{0.48\textwidth}
+\begin{block}{Dynamic trajectory capture}
+\begin{itemize}\footnotesize
+  \item Live production runs feed the dataset continuously.
+  \item High-success runs ($r\ge0.65$) join the training pool.
+  \item Currently \textbf{210 de-duplicated topologies}.
+  \item Failed runs logged by type for DPO mining.
+\end{itemize}
+\end{block}
+\end{columns}
+\vspace{0.05cm}
+\begin{exampleblock}{Out-of-distribution benchmark: 110 prompts (isolated from training)}
+\centering\footnotesize
+\begin{tabular}{lrr}
+\toprule
+\textbf{Solver family} & \textbf{Count} & \textbf{Share} \\
+\midrule
+\texttt{simpleFoam} (steady incompressible) & 74 & 67\% \\
+\texttt{rhoSimpleFoam} (steady compressible) & 9 & 8\% \\
+\texttt{interFoam} (multiphase VOF) & 7 & 6\% \\
+Others (\texttt{pimpleFoam}, \dots) & 20 & 18\% \\
+\bottomrule
+\end{tabular}
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}{The seven-layer self-evolution loop}
+
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\footnotesize,
+  layer/.style={rounded corners,draw=teal,fill=mint,minimum width=2.7cm,minimum height=0.95cm,align=center,inner sep=2pt},
+  guard/.style={rounded corners,draw=orange,fill=lightorange,minimum width=2.7cm,minimum height=0.95cm,align=center,inner sep=2pt},
+  arr/.style={-{Latex[length=2mm]},thick,draw=midgray}
+]
+\node[layer](l1)at(0,0){L1 Self-correct};
+\node[layer](l2)at(3.4,0){L2 Curate};
+\node[guard](l5)at(6.8,0){L5 Anchor mix};
+\node[guard](l6)at(10.2,0){L6 Active learning};
+\node[layer](l3)at(13.6,0){L3 SFT};
+\node[layer](l4)at(13.6,-1.6){L4 DPO};
+\node[layer](mg)at(10.2,-1.6){Merge};
+\node[guard](gt)at(6.8,-1.6){OOD gate};
+\node[guard](l7)at(3.4,-1.6){L7 Regression};
+\node[layer](sw)at(0,-1.6){Promote / reject};
+\draw[arr](l1)--(l2)--(l5)--(l6)--(l3)--(l4)--(mg)--(gt)--(l7)--(sw);
+\draw[arr,dashed,draw=alertred](sw)--node[left,font=\scriptsize\itshape,text=alertred]{reload}(l1);
+\end{tikzpicture}}
+\vspace{0.1cm}
+\begin{exampleblock}{Guardrail}
+\small The loop only promotes a new model after held-out evaluation and regression checks.
+\end{exampleblock}
+
+\end{frame}
+
+\begin{frame}{The seven layers in plain language}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{>{\bfseries}c >{\bfseries}l L L}
+\toprule
+L & Name & What it does & Risk it addresses \\
+\midrule
+1 & Self-correct & Fixes failed runs from solver logs and retries. & Wasted failed runs \\
+2 & Curate & Keeps only high-scoring ($r\ge0.65$), de-duplicated cases. & Learning from bad data \\
+3 & Fine-tune + gate & One corrective SFT epoch, then test on held-out OOD prompts. & Shipping a worse model \\
+4 & DPO & Learns from fail$\to$fix pairs: rejected failure vs chosen correction. & Repeating known mistakes \\
+5 & Anchor mix & 30\% original corpus in every batch. & Catastrophic forgetting \\
+6 & Active learning & Focuses on the weakest solver family; generates new seeds. & Uneven solver coverage \\
+7 & Regression check & Diff against a pinned baseline before promotion. & Silent regressions \\
+\bottomrule
+\end{tabularx}
+\end{frame}
+
+\begin{frame}{Anti-collapse mechanisms}
+\begin{block}{The self-distillation risk}
+\footnotesize Training on self-generated data can quickly degrade quality. AutoFOAM uses \textbf{three complementary defences} plus a preference-learning layer.
+\end{block}
+\vspace{0.15cm}
+\begin{columns}[T,onlytextwidth]
+\column{0.32\textwidth}
+\begin{exampleblock}{RAG-augmented retry}
+\footnotesize Chroma vector DB of verified OpenFOAM tutorial configs; relevant dictionary snippets are injected into the retry prompt, grounding the fix in known-good files.
+\end{exampleblock}
+\column{0.32\textwidth}
+\begin{exampleblock}{Surgical dictionary patching}
+\footnotesize On localised \texttt{FOAM FATAL} errors only the offending dictionary is patched, skipping costly \texttt{gmsh} remeshing.
+\end{exampleblock}
+\column{0.32\textwidth}
+\begin{exampleblock}{Prompt-diversity paraphrasing}
+\footnotesize Varies the phrasing of training prompts so the model does not overfit one pattern.
+\end{exampleblock}
+\end{columns}
+\vspace{0.2cm}
+\begin{alertblock}{Layer 4: Direct Preference Optimisation (DPO)}
+\centering\small
+Failure trajectory (\emph{rejected}) $\longleftrightarrow$ Layer-1-corrected success (\emph{chosen})\\
+DPO explicitly penalises the formulations that caused divergence.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Results: autonomous case generation}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{block}{Coverage}
+\begin{itemize}\small
+  \item \textbf{7 solver families}, e.g.\ \texttt{simpleFoam}, \texttt{pimpleFoam}, \texttt{rhoSimpleFoam}, \texttt{interFoam}, \texttt{icoFoam}.
+  \item \textbf{13 gmsh geometries}: cavity, step, NACA, cylinder, periodic hill, S-bend, Ahmed body, \dots
+  \item Input: one natural-language sentence.
+  \item Output: correct \texttt{polyMesh} boundaries and a convergent solution.
+\end{itemize}
+\end{block}
+\column{0.44\textwidth}
+\begin{exampleblock}{OOD headline metrics (110 prompts)}
+\centering\small
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+FOAM FATAL-free & \textbf{110/110} \\
+Execution success & \textbf{100\%} \\
+Solver routing accuracy & \textbf{96.4\%} (106/110) \\
+Mean reward $r$ & \textbf{0.64} \\
+Geometry templates & \textbf{13/13} \\
+Solver families & \textbf{7/7} \\
+\bottomrule
+\end{tabular}
+\end{exampleblock}
+\end{columns}
+\vspace{0.1cm}
+\begin{alertblock}{Misrouted: 4/110}
+\footnotesize Ambiguous low-$Re$ cases only, e.g.\ transient cylinder at $Re=250$ $\to$ \texttt{icoFoam} (physically justifiable).
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Representative OOD prompts}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{l L l c}
+\toprule
+\textbf{Tag} & \textbf{Prompt} & \textbf{Predicted solver} & \textbf{Match} \\
+\midrule
+\texttt{cav\_re150}  & \emph{Cavity flow Re=150 in water, 0.4~m square} & \texttt{simpleFoam} & \checkmark \\
+\texttt{pipe\_lam}   & \emph{Laminar pipe flow Re=500, diameter 0.02~m, water} & \texttt{simpleFoam} & \checkmark \\
+\texttt{naca\_re1m}  & \emph{NACA0012 at Re=$10^6$, 5$^\circ$ angle of attack} & \texttt{simpleFoam} & \checkmark \\
+\texttt{dam\_tall}   & \emph{Tall dam break, 2~m wide, 5~m water column collapse} & \texttt{interFoam} & \checkmark \\
+\texttt{cdnoz\_ma04} & \emph{Convergent-divergent nozzle, Mach 0.4 throat, air} & \texttt{rhoSimpleFoam} & \checkmark \\
+\texttt{cyl\_re250}  & \emph{Transient cylinder Re=250 in water, D=0.1~m} & \texttt{icoFoam} & $\times$ \\
+\bottomrule
+\end{tabularx}
+\vspace{0.3cm}
+\begin{block}{Evaluation infrastructure}
+\small 8-way sharded cluster of \textbf{NVIDIA H100} GPUs; 110 OOD prompts kept isolated from training data.
+\end{block}
+\end{frame}
+
+\begin{frame}{Autonomously generated meshes and flow solutions}
+\centering
+\begin{columns}[T,onlytextwidth]
+\column{0.24\textwidth}\centering
+\figbox{mesh-airfoil}{\linewidth}{1.9cm}{NACA mesh}\\[1mm]
+\figbox{vel-airfoil}{\linewidth}{1.9cm}{NACA $|U|$}\\[1mm]
+{\scriptsize NACA 4-digit airfoil}
+\column{0.24\textwidth}\centering
+\figbox{mesh-cylinder}{\linewidth}{1.9cm}{cylinder mesh}\\[1mm]
+\figbox{vel-cylinder}{\linewidth}{1.9cm}{cylinder $|U|$}\\[1mm]
+{\scriptsize Cylinder in cross-flow}
+\column{0.24\textwidth}\centering
+\figbox{mesh-periodic-hill}{\linewidth}{1.9cm}{periodic hill mesh}\\[1mm]
+\figbox{vel-periodic-hill}{\linewidth}{1.9cm}{periodic hill $|U|$}\\[1mm]
+{\scriptsize Periodic hill}
+\column{0.24\textwidth}\centering
+\figbox{mesh-sbend}{\linewidth}{1.9cm}{S-bend mesh}\\[1mm]
+\figbox{vel-sbend}{\linewidth}{1.9cm}{S-bend $|U|$}\\[1mm]
+{\scriptsize S-bend duct}
+\end{columns}
+\vfill
+\begin{block}{}
+\centering\small Top row: meshes. Bottom row: velocity magnitude. Each case came from a single natural-language prompt, with no manual intervention.
+\end{block}
+\end{frame}
+
+\begin{frame}{Live demo: AutoFOAM web interface}
+\begin{columns}[c,onlytextwidth]
+\column{0.57\textwidth}
+\centering
+\href{https://www.youtube.com/watch?v=Kx17bfFlMSc}{%
+  \figbox{demo-thumbnail}{\linewidth}{4.1cm}{Video thumbnail / screenshot of the AutoFOAM demo (click opens YouTube)}}
+\column{0.40\textwidth}
+\begin{block}{What the demo shows}
+\begin{itemize}\small
+  \item Natural-language prompt input.
+  \item Automated parameter extraction.
+  \item \texttt{gmsh} mesh generation.
+  \item OpenFOAM case file synthesis.
+  \item Live solver run and residual convergence.
+  \item Field contours and one-click ParaView.
+\end{itemize}
+\end{block}
+\begin{exampleblock}{Watch online}
+\centering\small
+\href{https://www.youtube.com/watch?v=Kx17bfFlMSc}{\texttt{youtu.be/Kx17bfFlMSc}}
+\end{exampleblock}
+\end{columns}
+\end{frame}
+
+\begin{frame}{What you get, and how to work with us}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{block}{What you get}
+\small
+\begin{itemize}
+  \item Hours of set-up cut to one prompt.
+  \item Standard OpenFOAM cases you can inspect and edit.
+  \item Python API, interactive REPL and batch runs.
+  \item Self-hosted: one GPU ($\ge$24\,GB) + OpenFOAM v2412.
+\end{itemize}
+\end{block}
+\column{0.48\textwidth}
+\begin{block}{Extensible; work with us}
+\small
+The workflow can be extended to other CFD tools and to geometries of your choice.\\[3pt]
+Pilots, custom solver/geometry extensions and commercial licensing.\\[3pt]
+\scriptsize\texttt{github.com/AGN000/AutoFOAM}
+\end{block}
+\end{columns}
+\end{frame}
+
+% ============================================================
+\section{Integration and outlook}
+% ============================================================
+
+\begin{frame}{How the pieces fit together (proposed workflow)}
+
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={rounded corners,draw=teal,fill=mint,minimum width=2.45cm,minimum height=1.05cm,align=center,inner sep=2pt},
+  agent/.style={rounded corners,draw=orange,fill=lightorange,minimum width=2.45cm,minimum height=1.05cm,align=center,inner sep=2pt},
+  arr/.style={-{Latex[length=2mm]},very thick,draw=orange},
+  fb/.style={-{Latex[length=2mm]},thick,dashed,draw=alertred}
+]
+\node[box](in)at(0,0){Engineer intent};
+\node[agent](ag)at(3.2,0){AutoFOAM\\generate + run};
+\node[box](ds)at(6.4,0){Verified CFD\\data};
+\node[box](sur)at(9.6,0){PINN / operator\\surrogate};
+\node[agent](val)at(12.8,0){Physics\\validator};
+\draw[arr](in)--(ag)--(ds)--(sur)--(val);
+\draw[fb](val.south)--++(0,-0.75)-|(ag.south);
+\end{tikzpicture}}
+\vspace{0.35cm}
+\begin{columns}[T,onlytextwidth]
+\column{0.31\textwidth}
+\begin{block}{Generate}
+\small Agentic automation lowers the CFD set-up cost.
+\end{block}
+\column{0.31\textwidth}
+\begin{block}{Accelerate}
+\small Verified CFD data supports reusable surrogates.
+\end{block}
+\column{0.31\textwidth}
+\begin{block}{Validate}
+\small Independent physics checks prevent silent failure.
+\end{block}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Limitations and validation gaps}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{alertblock}{AutoFOAM}
+\small
+\begin{itemize}
+  \item 13 parameterised geometries; no raw CAD pipeline.
+  \item RANS-focused; broader physics remains to be tested.
+  \item Reward favours execution / convergence and can miss physical error.
+\end{itemize}
+\end{alertblock}
+\column{0.48\textwidth}
+\begin{alertblock}{Physics-informed surrogates}
+\small
+\begin{itemize}
+  \item Small benchmark set and controlled initialisation.
+  \item Crystal-growth case lacks a ground-truth field.
+  \item Field difficulty is uneven: velocity can be much harder than temperature.
+\end{itemize}
+\end{alertblock}
+\end{columns}
+\vspace{0.15cm}
+\begin{exampleblock}{Priority}
+\small Add independent benchmark checks and field/component-level metrics before claiming general CFD accuracy.
+\end{exampleblock}
+
+\end{frame}
+
+\begin{frame}{Research and validation roadmap}
+
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  rstep/.style={rounded corners,draw=teal,fill=mint,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  arr/.style={-{Latex[length=2mm]},very thick,draw=orange}
+]
+\node[rstep](s1){1.\ Strong baselines\\PINNs / operators};
+\node[rstep,right=0.5cm of s1](s2){2.\ Geometry +\\multi-physics};
+\node[rstep,right=0.5cm of s2,fill=lightorange,draw=orange](s3){3.\ Agentic data\\generation};
+\node[rstep,right=0.5cm of s3,fill=lightorange,draw=orange](s4){4.\ Physics validator\\+ CAD-to-mesh};
+\draw[arr](s1)--(s2)--(s3)--(s4);
+\end{tikzpicture}}
+\vspace{0.35cm}
+\begin{columns}[T,onlytextwidth]
+\column{0.31\textwidth}
+\begin{block}{Measure}
+\small Accuracy, conservation, constraint satisfaction, runtime.
+\end{block}
+\column{0.31\textwidth}
+\begin{block}{Broaden}
+\small More geometries, turbulent and multi-physics benchmarks.
+\end{block}
+\column{0.31\textwidth}
+\begin{block}{Close the loop}
+\small Feed validator outcomes back into agent training.
+\end{block}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Key takeaways}
+
+\begin{enumerate}\setlength{\itemsep}{4pt}\small
+  \item \key{CFD is the bottleneck:} high-fidelity simulation is expensive and expertise-heavy.
+  \item \key{Physics helps, but metrics matter:} PINNs can reduce PDE residuals while producing worse fields.
+  \item \key{Operators scale the idea:} learn reusable maps across parameters and, increasingly, geometry.
+  \item \key{Surrogate error is field-specific:} temperature can be accurate while velocity remains difficult.
+  \item \key{Agents remove set-up friction:} AutoFOAM automates case generation, execution and correction.
+  \item \key{Validation is the common layer:} neither a low loss nor a converged CFD run is sufficient on its own.
+\end{enumerate}
+\vfill
+\centering
+\large\textcolor{navy}{Physics + geometry + agentic automation}\\
+\large\textcolor{midgray}{$\longrightarrow$ accelerated CFD with explicit validation}
+
+\end{frame}
+
+% ============================================================
+\section{References}
+% ============================================================
+
+\begin{frame}{Selected references}
+
+\scriptsize
+\begin{itemize}\setlength{\itemsep}{1.5pt}
+  \item M. Raissi, P. Perdikaris, G. E. Karniadakis (2019), \emph{Physics-informed neural networks}, J. Comput. Phys. 378, 686--707. doi:10.1016/j.jcp.2018.10.045.
+  \item S. Wang, Y. Teng, P. Perdikaris (2021), \emph{Understanding and mitigating gradient flow pathologies in PINNs}, SIAM J. Sci. Comput. 43, A3055--A3081. doi:10.1137/20M1318043.
+  \item A. Krishnapriyan et al. (2021), \emph{Characterizing possible failure modes in PINNs}, NeurIPS 34.
+  \item N. Kovachki et al. (2023), \emph{Neural Operator: Learning Maps Between Function Spaces With Applications to PDEs}, JMLR 24.
+  \item W. Zhong, H. Meidani (2024), \emph{Physics-Informed Geometry-Aware Neural Operator}, arXiv:2408.01600.
+  \item D. Kolberg, C. Anders, S. Reke (2023), silicon VMCz crystal-growth PINNs, doi:10.1080/00219592.2023.2236656.
+  \item N. Chapagain et al. (2026), \emph{Component-Level Evaluation of Adaptive PINN Training for CFD-Oriented Crystal Growth Simulation}, NeurIPS 2026 Sim2Science workshop.
+  \item A. G. Neelan, A. Seshaditya, \emph{AutoFOAM: The Self-Refining Autonomous OpenFOAM Agent}.
+\end{itemize}
+\vspace{0.05cm}
+\textbf{Project resources:}
+\href{https://github.com/AGN000/AutoFOAM}{AutoFOAM},
+\href{https://github.com/AGN000/FoamAgentCases}{FoamAgentCases},
+\href{https://huggingface.co/arungovindneelan/foam-cfd-unified-14b}{foam-cfd-unified-14b}.
+
+\end{frame}
+
+% ============================================================ THANK YOU
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[navy] (current page.south west) rectangle (current page.north east);
+  \fill[teal] (current page.south east) rectangle ([xshift=-0.20\paperwidth]current page.north east);
+  \fill[orange] ([xshift=-0.20\paperwidth]current page.south east) rectangle ([xshift=-0.195\paperwidth]current page.north east);
+\end{tikzpicture}
+\vspace{0.9cm}
+\begin{minipage}{0.76\textwidth}
+{\color{white}\fontsize{30}{36}\selectfont\bfseries Thank you\par}
+\vspace{0.3cm}
+{\color{white!85}\large A Seshaditya, QuaSi\par}
+\vspace{0.25cm}
+{\color{white!75}\small
+With Arun Govind Neelan (AutoFOAM) and Niruta Chapagain, Rohit Raj,\\
+Bertwin Kurisinkal Shine (crystal-growth PINNs)\\[2mm]
+\href{https://quasi.digital}{quasi.digital}\quad
+\href{https://github.com/adytiaa/quasi.ai}{github.com/adytiaa/quasi.ai}\quad
+\href{https://adytiaa.github.io/quasi.ai/}{adytiaa.github.io/quasi.ai}\par}
+\vfill
+{\color{white!65}\small Physics-informed and agentic AI for accelerating CFD simulations\par}
+\end{minipage}
+\end{frame}
+
+\end{document}
