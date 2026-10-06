@@ -1,135 +1,149 @@
-\documentclass[aspectratio=169,10pt]{beamer}
-
-% ============================================================
-% Physics-informed and agentic AI for accelerating CFD
-% Expanded deck (detailed explanations). Sources:
-%   - classical physics-informed learning (from CFD_QAI.tex, quantum/hybrid removed)
-%   - crystal-growth case study (from main_nerips.tex)
-%   - agentic CFD / AutoFOAM (from presentation.tex)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Beamer Presentation
+% LaTeX Template
+% Version 1.0 (10/11/12)
 %
-% IMAGES: no images are embedded. Every figure is a dashed placeholder
-% that shows the file name it expects. Put the PNG into  images/  with
-% exactly that name and recompile -- the placeholder is replaced automatically.
-% ============================================================
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage{lmodern}
-\usepackage{amsmath,amssymb}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{tabularx}
-\usepackage{graphicx}
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND THEMES
+%----------------------------------------------------------------------------------------
+
+\documentclass{beamer}
+
+\mode<presentation> {
+
+
+% The Beamer class comes with a number of default slide themes
+% which change the colors and layouts of slides. Below this is a list 
+% of all the themes, uncomment each in turn to see what they look like.
+
+%\usetheme{default}
+%\usetheme{AnnArbor}
+%\usetheme{Antibes}
+%\usetheme{Bergen}
+%\usetheme{Berkeley}
+%\usetheme{Berlin}
+%\usetheme{Boadilla}
+%\usetheme{CambridgeUS}
+%\usetheme{Copenhagen}
+%\usetheme{Darmstadt}
+%\usetheme{Dresden}
+%\usetheme{Frankfurt}
+%\usetheme{Goettingen}
+%\usetheme{Hannover}
+%\usetheme{Ilmenau}
+%\usetheme{JuanLesPins}
+%\usetheme{Luebeck}
+\usetheme{Madrid}
+%\usetheme{Malmoe}
+%\usetheme{Marburg}
+%\usetheme{Montpellier}
+%\usetheme{PaloAlto}
+%\usetheme{Pittsburgh}
+%\usetheme{Rochester}
+%\usetheme{Singapore}
+%\usetheme{Szeged}
+%\usetheme{Warsaw}
+
+% As well as themes, the Beamer class has a number of color themes
+% for any slide theme. Uncomment each of these in turn to see how it
+% changes the colors of your current slide theme.
+
+%\usecolortheme{albatross}
+%\usecolortheme{beaver}
+%\usecolortheme{beetle}
+%\usecolortheme{crane}
+%\usecolortheme{dolphin}
+%\usecolortheme{dove}
+%\usecolortheme{fly}
+%\usecolortheme{lily}
+%\usecolortheme{orchid}
+%\usecolortheme{rose}
+%\usecolortheme{seagull}
+%\usecolortheme{seahorse}
+%\usecolortheme{whale}
+%\usecolortheme{wolverine}
+
+%\setbeamertemplate{footline} % To remove the footer line in all slides uncomment this line
+%\setbeamertemplate{footline}[page number] % To replace the footer line in all slides with a simple slide count uncomment this line
+
+\setbeamertemplate{navigation symbols}{} % To remove the navigation symbols from the bottom of all slides uncomment this line
+}
+
+\usepackage{graphicx} % Allows including images
+\usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
+\usepackage{amsmath}
 \usepackage{xcolor}
-\usepackage{hyperref}
-\usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,fit,calc}
-\graphicspath{{images/}}
-\newcolumntype{L}{>{\raggedright\arraybackslash}X}
-
-% ---------- colours ----------
-\definecolor{navy}{HTML}{173B4D}
-\definecolor{teal}{HTML}{2C6975}
-\definecolor{mint}{HTML}{E9F4F2}
-\definecolor{orange}{HTML}{D9822B}
-\definecolor{lightorange}{HTML}{FBEBDA}
-\definecolor{lightgray}{HTML}{F3F5F6}
-\definecolor{midgray}{HTML}{68757A}
-\definecolor{dark}{HTML}{1F2528}
-\definecolor{alertred}{HTML}{B5473A}
-
-\setbeamercolor{normal text}{fg=dark,bg=white}
-\setbeamercolor{structure}{fg=teal}
-\setbeamercolor{frametitle}{fg=navy,bg=white}
-\setbeamercolor{title}{fg=navy}
-\setbeamercolor{footline}{fg=midgray,bg=white}
-\setbeamercolor{block title}{fg=white,bg=navy}
-\setbeamercolor{block body}{fg=dark,bg=lightgray}
-\setbeamercolor{block title alerted}{fg=white,bg=orange}
-\setbeamercolor{block body alerted}{fg=dark,bg=lightorange}
-\setbeamercolor{block title example}{fg=white,bg=teal}
-\setbeamercolor{block body example}{fg=dark,bg=mint}
-
-\setbeamerfont{frametitle}{size=\large,series=\bfseries}
-\setbeamerfont{block title}{size=\small,series=\bfseries}
-\setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{itemize item}{\color{teal}\small$\blacktriangleright$}
-\setbeamertemplate{itemize subitem}{\color{orange}\scriptsize$\blacktriangleright$}
-\setbeamertemplate{section in toc}[sections numbered]
-\setbeamercolor{section in toc}{fg=navy}
-
-% ---------- frame title: small section tag + title + accent rule ----------
-\setbeamertemplate{frametitle}{
-  \vspace{0.12cm}
-  \begin{beamercolorbox}[wd=\paperwidth,leftskip=0.65cm,rightskip=0.65cm]{frametitle}
-    {\fontsize{7}{8}\selectfont\color{orange}\bfseries\MakeUppercase{\insertsection}\par}
-    \vspace{0.02cm}
-    \usebeamerfont{frametitle}\insertframetitle\par
-    \vspace{0.03cm}
-    {\color{orange}\rule{0.65cm}{1.6pt}}
-  \end{beamercolorbox}
+\usepackage[footnotesize]{subfigure}
+\definecolor{olive}{rgb}{0.3, 0.4, .1}
+\definecolor{fore}{RGB}{249,242,215}
+\definecolor{back}{RGB}{51,51,51}
+\definecolor{title}{RGB}{255,0,90}
+\definecolor{dgreen}{rgb}{0.,0.6,0.}
+\definecolor{gold}{rgb}{1.,0.84,0.}
+\definecolor{Red}{cmyk}{0.99,0,0.52,0}
+\definecolor{Red}{cmyk}{0.85,0,0.33,0}
+\definecolor{RawSienna}{cmyk}{0,0.72,1,0.45}
+\definecolor{Magenta}{cmyk}{0,1,0,0}
+\newcommand{\farbig}[2][red]{\textcolor{#1}{#2}}
+\newcommand{\mysize}[3][1.2]{%
+  \set@fontsize\baselinestretch{#2}{#2}%
+  \set@fontsize{#1}\f@size\f@baselineskip%
+  {\selectfont#3}
 }
+\newcommand{\vect}[1]{\textbf{\textit{#1}}}
+\renewcommand{\vec}[1]{\mbox{\boldmath \small $#1$}}
+\newcommand{\AT}{{\textrm{{AT}}}}
+\newcommand{\EX}{{\textrm{EX}}}
+\newcommand{\CG}{{\textrm{CG}}}
+\newcommand{\HY}{{\Delta}}
+%----------------------------------------------------------------------------------------
+%	TITLE PAGE
+%----------------------------------------------------------------------------------------
+\title{Physics & AI (LLMs) For CFD Simulations} % The short title appears at the bottom of every slide, the full title is only on the title page
 
-% ---------- footer ----------
-\setbeamertemplate{footline}{
-  \leavevmode
-  \hbox{
-    \begin{beamercolorbox}[wd=.82\paperwidth,ht=0.35cm,dp=0.15cm,leftskip=.65cm]{footline}
-      \scriptsize Physics-informed and agentic AI for accelerating CFD
-    \end{beamercolorbox}
-    \begin{beamercolorbox}[wd=.18\paperwidth,ht=0.35cm,dp=0.15cm,rightskip=.65cm plus1fil]{footline}
-      \scriptsize\insertframenumber
-    \end{beamercolorbox}
-  }
-}
+\author{qüasi ai} % Your name
 
-% ---------- helper macros ----------
-\newcommand{\source}[1]{\vspace{0.05cm}{\scriptsize\color{midgray}Source: #1}}
-\newcommand{\smallnote}[1]{{\scriptsize\color{midgray}#1}}
-\newcommand{\key}[1]{\textcolor{teal}{\textbf{#1}}}
-\newcommand{\highlight}[1]{\textcolor{orange}{\textbf{#1}}}
+\date{\today} % Date, can be changed to a custom date
 
-% \figbox{file-name-without-.png}{width}{height}{short description}
-% If images/<file-name>.png exists it is inserted; otherwise a dashed placeholder is drawn.
-\newcommand{\figbox}[4]{%
-  \IfFileExists{images/#1.png}{%
-    \includegraphics[width=#2,height=#3,keepaspectratio]{images/#1.png}%
-  }{%
-    \begin{tikzpicture}
-      \node[draw=midgray,dashed,thick,fill=lightgray,minimum width=#2,minimum height=#3,
-            align=center,text=midgray,font=\scriptsize,inner sep=3pt,text width=#2-6pt]
-        {\textbf{[IMAGE PLACEHOLDER]}\\[1pt]\texttt{images/#1.png}\\[1pt]\textit{#4}};
-    \end{tikzpicture}%
-  }%
-}
-
-% ---------- title data ----------
-\title{Physics-Informed and Agentic AI\\for Accelerating CFD}
-\author{A Seshaditya}
-\institute{QuaSi}
-\date{}
-
-% extra helper: small labelled equation box
-\newcommand{\eqbox}[1]{\begin{center}\colorbox{mint}{\parbox{0.92\linewidth}{\centering #1}}\end{center}}
 \begin{document}
 
-% ============================================================ TITLE
-\begin{frame}[plain]
-  \begin{tikzpicture}[remember picture,overlay]
-    \fill[navy] (current page.south west) rectangle (current page.north east);
-    \fill[teal] (current page.south east) rectangle ([xshift=-0.20\paperwidth]current page.north east);
-    \fill[orange] ([xshift=-0.20\paperwidth]current page.south east) rectangle ([xshift=-0.195\paperwidth]current page.north east);
-  \end{tikzpicture}
-  \vspace{0.9cm}
-  \begin{minipage}[t][0.78\textheight]{0.74\textwidth}
-    \raggedright
-    {\color{white}\fontsize{22}{27}\selectfont\bfseries Physics-Informed and\\Agentic AI for Accelerating\\CFD Simulations\par}
-    \vspace{0.45cm}
-    {\color{white!80}\large From PINNs and neural operators\\to autonomous OpenFOAM workflows\par}
-    \vfill
-    {\color{white}\large A Seshaditya\\[1mm]QuaSi\par}
-  \end{minipage}
+\begin{frame}
+\titlepage % Print the title page as the first slide
 \end{frame}
 
+\begin{frame}
+\frametitle{Outline} % Table of contents slide, comment this block out to remove it
+\tableofcontents % Throughout your presentation, if you choose to use \subsection{} and \subsection{} commands, these will automatically be printed on this slide as an overview of your presentation
+\end{frame}
+
+%----------------------------------------------------------------------------------------
+%	PRESENTATION SLIDES
+%----------------------------------------------------------------------------------------
+
+
+\section{Improved Physics-Informed Neural Networks for Silicon Crystal Growth}
+\section{Modeling of Cryogenic Systems-H2, N2}
+\section{Dyad Agent- Jüiahüb}
+
+\subsection{Cryogenic H2/N2}
+
+\begin{frame}
+\begin{figure}
+\centering
+%\includegraphics[width=0.5\textwidth]{Images/docker_events.png}
+\includegraphics[width=0.8\textwidth]{cryo_1.jpg}
+\end{figure}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ============================================================ AGENDA
 \begin{frame}{Agenda}
 
