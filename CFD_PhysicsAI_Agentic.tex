@@ -104,9 +104,9 @@
 
 % ---------- title data ----------
 \title{Physics-Informed and Agentic AI\\for Accelerating CFD Simulations}
-\author{A Seshaditya}
-\institute{QuaSi}
-\date{}
+\author{adi}
+\institute{Quasi AI}
+\date{\today}
 
 \begin{document}
 
@@ -127,9 +127,9 @@
     {\color{white}\fontsize{22}{27}\selectfont\bfseries
       Physics-Informed and\\Agentic AI for Accelerating\\CFD Simulations\par}
     \vspace{0.45cm}
-    {\color{white!80}\large From PINNs and neural operators\\to autonomous OpenFOAM workflows\par}
+    {\color{white!80}\large From PI- Neural Networks and Neural Operators\\autonomous OpenFOAM workflows\par}
     \vfill
-    {\color{white}\large A Seshaditya\\[1mm]QuaSi\par}
+    {\color{white}\large \\[1mm]Quasi\par}
   \end{minipage}
 \end{frame}
 
@@ -337,8 +337,8 @@ GAOT    & Geometry-aware transformer       & Attention-based operator learning  
 \end{tabularx}
 
 \vspace{0.2cm}
-\centering
-\figbox{approach-comparison}{0.7\linewidth}{1.5cm}{Optional: comparison figure / benchmark chart}
+%\centering
+%\figbox{approach-comparison}{0.7\linewidth}{1.5cm}{Optional: comparison figure / benchmark chart}
 
 \vfill
 \raggedright\source{arXiv:2408.01600v1, arXiv:2505.18781v2.}
@@ -675,35 +675,35 @@ Others (\texttt{pimpleFoam}, \dots) & 20 & 18\% \\
 \end{frame}
 
 % ------------------------------------------------------------
-\begin{frame}{Anti-collapse mechanisms}
-\begin{block}{The self-distillation risk}
-\small Training on self-generated data can quickly degrade quality. AutoFOAM uses
-\textbf{three complementary defences} plus a preference-learning layer.
-\end{block}
-\vspace{0.15cm}
-\begin{columns}[T,onlytextwidth]
-\column{0.32\textwidth}
-\begin{exampleblock}{RAG-augmented retry}
-\small Chroma vector DB of verified OpenFOAM tutorial configs; relevant dictionary snippets are
-injected into the retry prompt.
-\end{exampleblock}
-\column{0.32\textwidth}
-\begin{exampleblock}{Surgical dictionary patching}
-\small On localised \texttt{FOAM FATAL} errors only the offending dictionary is patched,
-skipping costly \texttt{gmsh} remeshing.
-\end{exampleblock}
-\column{0.32\textwidth}
-\begin{exampleblock}{Prompt-diversity paraphrasing}
-\small Varies the phrasing of training prompts so the model does not overfit one pattern.
-\end{exampleblock}
-\end{columns}
-\vspace{0.2cm}
-\begin{alertblock}{Layer 4: Direct Preference Optimisation (DPO)}
-\centering\small
-Failure trajectory (\emph{rejected}) $\longleftrightarrow$ Layer-1-corrected success (\emph{chosen})\\
-DPO explicitly penalises the formulations that caused divergence.
-\end{alertblock}
-\end{frame}
+%\begin{frame}{Anti-collapse mechanisms}
+%\begin{block}{The self-distillation risk}
+%\small Training on self-generated data can quickly degrade quality. AutoFOAM uses
+%\textbf{three complementary defences} plus a preference-learning layer.
+%\end{block}
+%\vspace{0.15cm}
+%\begin{columns}[T,onlytextwidth]
+%\column{0.32\textwidth}
+%\begin{exampleblock}{RAG-augmented retry}
+%\small Chroma vector DB of verified OpenFOAM tutorial configs; relevant dictionary snippets are
+%injected into the retry prompt.
+%\end{exampleblock}
+%\column{0.32\textwidth}
+%\begin{exampleblock}{Surgical dictionary patching}
+%\small On localised \texttt{FOAM FATAL} errors only the offending dictionary is patched,
+%skipping costly \texttt{gmsh} remeshing.
+%\end{exampleblock}
+%\column{0.32\textwidth}
+%\begin{exampleblock}{Prompt-diversity paraphrasing}
+%\small Varies the phrasing of training prompts so the model does not overfit one pattern.
+%\end{exampleblock}
+%\end{columns}
+%\vspace{0.2cm}
+%\begin{alertblock}{Layer 4: Direct Preference Optimisation (DPO)}
+%\centering\small
+%Failure trajectory (\emph{rejected}) $\longleftrightarrow$ Layer-1-corrected success (\emph{chosen})\\
+%DPO explicitly penalises the formulations that caused divergence.
+%\end{alertblock}
+%\end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{Results: autonomous case generation}
@@ -996,11 +996,11 @@ than a single aggregate score.
 {\color{white!85}\large A Seshaditya, QuaSi\par}
 \vspace{0.25cm}
 {\color{white!75}\small
-With Arun Govind Neelan (AutoFOAM) and Niruta Chapagain, Rohit Raj,\\
+With Aswin, Adriano, Arun (AutoFOAM) and Niruta Chapagain, Rohit Raj,\\
 Bertwin Kurisinkal Shine (crystal-growth PINNs)\\[2mm]
 \href{https://quasi.digital}{quasi.digital}\quad
-\href{https://github.com/adytiaa/quasi.ai}{github.com/adytiaa/quasi.ai}\quad
-\href{https://adytiaa.github.io/quasi.ai/}{adytiaa.github.io/quasi.ai}\par}
+\href{https://github.com/adytiaa/}{github.com/adytiaa/}\quad
+%\href{https://adytiaa.github.io/quasi.ai/}{adytiaa.github.io/quasi.ai}\par}
 \vfill
 {\color{white!65}\small Physics-informed and agentic AI for accelerating CFD simulations\par}
 \end{minipage}
