@@ -1,0 +1,7 @@
+\BOOKMARK [2][]{Outline0.1}{Introduction and Motivation}{}% 1
+\BOOKMARK [2][]{Outline0.2}{Dataset}{}% 2
+\BOOKMARK [2][]{Outline0.3}{Model Architecture}{}% 3
+\BOOKMARK [2][]{Outline0.4}{Physics Loss}{}% 4
+\BOOKMARK [2][]{Outline0.5}{Stage 1: Local Proof of Concept}{}% 5
+\BOOKMARK [2][]{Outline0.6}{Stage 2: H100 DGX Pretraining}{}% 6
+\BOOKMARK [2][]{Outline0.7}{Stage 3: IBM Quantum Hardware Fine-Tuning}{}% 7

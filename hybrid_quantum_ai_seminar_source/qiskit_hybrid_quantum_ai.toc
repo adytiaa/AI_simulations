@@ -1,0 +1,5 @@
+\beamer@sectionintoc {1}{Motivation}{3}{0}{1}
+\beamer@sectionintoc {2}{Classical approaches}{6}{0}{2}
+\beamer@sectionintoc {3}{Hybrid quantum--classical model}{11}{0}{3}
+\beamer@sectionintoc {4}{Benchmark and results}{18}{0}{4}
+\beamer@sectionintoc {5}{Outlook}{27}{0}{5}

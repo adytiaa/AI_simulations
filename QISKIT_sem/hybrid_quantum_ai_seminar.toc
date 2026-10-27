@@ -1,0 +1,6 @@
+\beamer@sectionintoc {1}{Motivation}{3}{0}{1}
+\beamer@sectionintoc {2}{Why classical PINNs struggle}{6}{0}{2}
+\beamer@sectionintoc {3}{The Hybrid-QPINN / QPINO framework}{10}{0}{3}
+\beamer@sectionintoc {4}{Benchmarks and protocol}{19}{0}{4}
+\beamer@sectionintoc {5}{Results}{23}{0}{5}
+\beamer@sectionintoc {6}{Outlook}{30}{0}{6}

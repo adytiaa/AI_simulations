@@ -1,0 +1,918 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{array}
+
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{navigation symbols}{}
+
+\title{Hybrid Quantum--Classical Physics-Informed Neural Network \\ for Czochralski Crystal Growth}
+\subtitle{Full Study Report --- HPC and IBM Quantum Compute}
+\author{Aswin}
+\date{September 2026}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+% =====================================================================
+\section{Introduction and Motivation}
+% =====================================================================
+
+\begin{frame}{The Industrial Problem}
+\begin{itemize}
+  \item Czochralski (CZ) crystal growth is the dominant method for producing single-crystal silicon ingots for semiconductor wafers.
+  \item A seed crystal is pulled from a molten silicon bath in a rotating quartz crucible at $\sim$1685--1750~K.
+  \item Crystal quality (defect density, oxygen concentration, resistivity uniformity) is controlled by melt hydrodynamics and thermal structure.
+  \item Governed by axisymmetric, incompressible Navier--Stokes equations with:
+  \begin{itemize}
+    \item Buoyancy: Grashof number $Gr = 8{,}000$
+    \item Rotation-driven swirl
+    \item Heat transfer: Prandtl number $Pr = 28.463$
+  \end{itemize}
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Five coupled output fields:} $u_r$, $u_z$, $u_\theta$, $p$, $T$
+
+\vspace{0.3cm}
+CFD solvers are accurate but slow (hours--days per simulation) --- prohibitive for real-time control or parametric studies.
+\end{frame}
+
+\begin{frame}{The Proposed Solution}
+\textbf{Hybrid Quantum--Classical Physics-Informed Neural Network (HQPINN)} as a surrogate model:
+
+\begin{itemize}
+  \item Takes spatial coordinates $(r, z)$ as input
+  \item Produces all five flow fields in milliseconds
+  \item Trained on CFD data with Navier--Stokes residuals embedded in the loss
+  \item Uses a 16-qubit variational quantum circuit as a feature-extraction layer
+  \item Fine-tuned on real IBM quantum hardware
+\end{itemize}
+
+\vspace{0.3cm}
+Combines: classical deep learning expressivity $+$ physics-informed consistency $+$ quantum feature representations.
+\end{frame}
+
+\begin{frame}{Why Quantum Computing?}
+\begin{itemize}
+  \item Quantum layer: \textbf{96 of 126,021 parameters (0.076\%)}
+  \item Role: not the primary computation --- classical layers dominate
+  \item Injects quantum features with entanglement-based correlations that are exponentially hard to reproduce classically
+\end{itemize}
+
+\vspace{0.3cm}
+\begin{alertblock}{Open Question}
+Does the quantum layer provide unique information, or does the classical skip connection already capture the same features? \textbf{Requires an ablation study} (Section: Next Steps).
+\end{alertblock}
+
+This work demonstrates the infrastructure, training pipeline, and IBM quantum hardware execution at scale.
+\end{frame}
+
+% =====================================================================
+\section{Dataset}
+% =====================================================================
+
+\begin{frame}{Dataset Overview}
+\textbf{Source:} CFD simulation of Czochralski melt, axisymmetric solver.
+Domain: $r \in [0, 0.3~\text{m}]$, $z \in [0, 0.3~\text{m}]$.
+
+\vspace{0.3cm}
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+Property & Value \\
+\midrule
+Total data points & 18,108 \\
+Spatial columns & $r$, $z$ \\
+Output columns & $u$, $w$, $v_\theta$, $p$, $T$ \\
+File & \texttt{cz\_melt\_raw.txt} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{0.3cm}
+\textbf{Train/Validation split (95/5):}
+\begin{itemize}
+  \item Training set: 17,203 points
+  \item Validation set: 905 points (held out)
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Data Normalization}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Scale & Value & Derivation \\
+\midrule
+Length scale & 0.300 m & $\max(r_{max}, z_{max})$ \\
+Velocity scale & 0.1666 m/s & max velocity magnitude \\
+Pressure scale & 3722.41 Pa & max absolute pressure \\
+Temp.\ min & 1685.0 K & $\min(T)$ \\
+Temp.\ max & 1750.0 K & $\max(T)$ \\
+Pressure coeff.\ & \textbf{134,128.5} & $p_{scale}/v_{scale}^2$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{alertblock}{Critical Quantity}
+The pressure coefficient of 134{,}128 later caused physics loss instability: it amplifies pressure gradients in the dimensionless momentum equations relative to velocity gradients, creating a severe scale mismatch.
+\end{alertblock}
+\end{frame}
+
+% =====================================================================
+\section{Model Architecture}
+% =====================================================================
+
+\begin{frame}{Architecture Overview}
+\begin{center}
+\small
+\begin{tabular}{c}
+Input $(r, z)$ \\
+$\downarrow$ \\
+Fourier Feature Encoding $[2 \to 48]$ \\
+$\downarrow$ \\
+Coordinate Projector $[50 \to 128 \to 128]$ \\
+$\downarrow$ \\
+ResidualMLP $\times 2$ $[128 \to 128]$ \\
+\end{tabular}
+\end{center}
+
+\vspace{0.2cm}
+\begin{columns}
+\column{0.5\textwidth}
+\centering
+\textbf{to\_quantum} $[128\to64\to16]$, $\pi\cdot\tanh(\cdot)$ \\
+$\downarrow$ \\
+\textbf{16-Qubit Circuit} (2 layers: RY+RZ+Rot+CZ) \\
+$\downarrow$ \\
+LayerNorm(16)
+\column{0.5\textwidth}
+\centering
+\textbf{classical\_skip} \\
+$[128 \to 64]$, Tanh
+\end{columns}
+
+\vspace{0.2cm}
+\begin{center}
+Concatenate $[64+16+2=82]$ $\to$ Post Network $[82\to128\to64\to5]$ \\
+$\to$ Hard Constraints: $u_r = r\cdot\text{raw}_0$, $u_\theta = r \cdot \text{raw}_2$
+\end{center}
+\end{frame}
+
+\begin{frame}{Component Details (1/2)}
+\textbf{Fourier Feature Encoding}
+\begin{itemize}
+  \item Fixed random projection $B \in \mathbb{R}^{2\times24}$, sampled $\mathcal{N}(0, 6^2)$
+  \item $\text{ff}(x) = [\sin(2\pi x B), \cos(2\pi x B)]$
+  \item Frequencies up to $\sim$15 cycles/unit length
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{Classical Encoder}
+\begin{itemize}
+  \item Linear(50, 128) + Tanh, Linear(128, 128) + Tanh
+  \item ResidualMLP$\times$2: $h \leftarrow \tanh(h + W_2 \cdot \tanh(W_1 \cdot h))$
+\end{itemize}
+
+\vspace{0.2cm}
+\textbf{To-Quantum Projection}
+\begin{itemize}
+  \item Linear(128, 64) + Tanh + Linear(64, 16), scaled by $\pi\cdot\tanh(\cdot)$ to $[-\pi, \pi]$
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Component Details (2/2)}
+\textbf{16-Qubit Variational Quantum Circuit --- 2 layers, each applies:}
+\begin{enumerate}
+  \item Data encoding: $RY(\theta_i)$ on each qubit
+  \item Data re-upload: $RZ(0.5\cdot\theta_{(i+\text{layer}) \bmod 16})$
+  \item Trainable rotation: $\text{Rot}(\varphi_i, \theta_i, \omega_i)$ --- 48 params/layer
+  \item Entangling: alternating CZ gates, ring topology (closing CZ on qubit 15--0)
+\end{enumerate}
+Measurement: $\langle Z_i \rangle$ for $i = 0..15$ \quad $\Rightarrow$ \textbf{96 quantum parameters total}
+
+\vspace{0.3cm}
+\textbf{Classical Skip Connection:} Linear(128,64)+Tanh --- bypasses quantum entirely, prevents quantum bottleneck from degrading performance
+
+\vspace{0.3cm}
+\textbf{Hard Physical Constraints:} $u_r, u_\theta$ multiplied by $r$ --- exactly enforces zero velocity on the symmetry axis, built into architecture not learned
+\end{frame}
+
+\begin{frame}{Parameter Count}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lr}
+\toprule
+Component & Parameters \\
+\midrule
+Fourier feature buffer $B$ (frozen) & 48 \\
+coord\_proj (2 layers) & 23,040 \\
+res1.block (2 layers) & 33,024 \\
+res2.block (2 layers) & 33,024 \\
+to\_quantum (2 layers) & 9,296 \\
+classical\_skip & 8,256 \\
+\textbf{q\_layer.weights} & \textbf{96} \\
+q\_norm (scale + bias) & 32 \\
+post (3 layers) & 19,205 \\
+\midrule
+\textbf{Total} & \textbf{126,021} \\
+\textbf{Quantum fraction} & \textbf{0.076\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+% =====================================================================
+\section{Physics Loss}
+% =====================================================================
+
+\begin{frame}{Governing Equations}
+Steady-state, axisymmetric, incompressible Navier--Stokes, nondimensionalised:
+
+\small
+\textbf{Continuity:}
+\[ \frac{\partial(r u_r)}{\partial r} + r\frac{\partial u_z}{\partial z} = 0 \]
+
+\textbf{Radial momentum:}
+\[ u_r u_{r,r} + u_z u_{r,z} - \frac{u_\theta^2}{r} + p_{coeff}\, p_r - \frac{1}{Re}\Big[u_{r,rr} + \frac{u_{r,r}}{r} - \frac{u_r}{r^2} + u_{r,zz}\Big] = 0 \]
+
+\textbf{Axial momentum:}
+\[ u_r u_{z,r} + u_z u_{z,z} + p_{coeff}\, p_z - \frac{1}{Re}\Big[u_{z,rr} + \frac{u_{z,r}}{r} + u_{z,zz}\Big] - \frac{Gr}{Re^2}\theta = 0 \]
+
+where $\theta = (T-T_{min})/(T_{max}-T_{min})$, $Re=15$, $Pr=28.463$, $Gr=8000$, $p_{coeff}=134{,}128$.
+\end{frame}
+
+\begin{frame}{Governing Equations (cont.)}
+\textbf{Swirl (angular momentum):}
+\[ u_r u_{\theta,r} + u_z u_{\theta,z} + \frac{u_r u_\theta}{r} - \frac{1}{Re}\Big[u_{\theta,rr} + \frac{u_{\theta,r}}{r} - \frac{u_\theta}{r^2} + u_{\theta,zz}\Big] = 0 \]
+
+\textbf{Energy:}
+\[ u_r \theta_r + u_z \theta_z - \frac{1}{Pr \cdot Re}\Big[\theta_{rr} + \frac{\theta_r}{r} + \theta_{zz}\Big] = 0 \]
+
+\vspace{0.4cm}
+\textbf{Implementation:}
+\begin{itemize}
+  \item All derivatives via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}
+  \item \textbf{Quantum detachment:} $q_{out}$ detached during physics loss --- avoids intractable 2nd-order gradients through the statevector
+  \item \textbf{EMA loss weighting} ($\beta=0.95$) normalises the 5 residual terms
+\end{itemize}
+\end{frame}
+
+% =====================================================================
+\section{Stage 1: Local Proof of Concept}
+% =====================================================================
+
+\begin{frame}{Stage 1 --- Mac M4 Proof of Concept}
+Before committing to GPU compute, we ran a rapid architecture validation locally on a Mac Mini M4 (24 GB unified memory).
+
+\vspace{0.3cm}
+\textbf{Configuration:}
+\begin{itemize}
+  \item 8 qubits (statevector reduced from $2^{16}$ to $2^8=256$ amplitudes)
+  \item 1 quantum layer
+  \item PennyLane \texttt{default.qubit} + \texttt{backprop}, parameter broadcasting
+  \item Batch size 2,048, 120 epochs, $\sim$29 minutes
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Purpose:} End-to-end pipeline test --- data loading, normalization, physics loss, checkpointing, per-field logging --- without GPU cost.
+
+\vspace{0.3cm}
+\textbf{Outcome:} Validation MSE $\approx 4.6\times10^{-3}$ after 120 epochs. Architecture confirmed correct; full 16-qubit version prepared for GPU training.
+\end{frame}
+
+% =====================================================================
+\section{Stage 2: H100 DGX Pretraining}
+% =====================================================================
+
+\begin{frame}{Compute Infrastructure --- Brev H100 DGX}
+\begin{table}
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+Resource & Specification \\
+\midrule
+GPU & NVIDIA H100 80GB HBM3 (GPU 4 of 8) \\
+VRAM & 80 GB (75.9 GB free at start) \\
+Storage & /data volume, 20 TB available \\
+OS & Ubuntu 22.04 \\
+CUDA driver & 580.105.08 (CUDA 13.0) \\
+PyTorch & 2.11.0+cu130 \\
+PennyLane & 0.44.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+GPUs 0--3 ran a VLLM inference workload (foamllm); GPU 4 was exclusively used for our training, isolating our job.
+
+Launched via \texttt{nohup} with \texttt{CUDA\_VISIBLE\_DEVICES=4}, surviving terminal disconnection.
+\end{frame}
+
+\begin{frame}{Training Configuration}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Hyperparameter & Value & Rationale \\
+\midrule
+Epochs & 400 & Convergence in $\sim$3.7 h on H100 \\
+Batch size & 256 & Maximise GPU utilisation \\
+Learning rate & $2\times10^{-3}$ & Fast initial convergence \\
+LR schedule & CosineAnnealing & $2\times10^{-3} \to 10^{-6}$ \\
+Physics warmup & Epoch 50 & Stabilise data fit first \\
+Physics ramp & 200 epochs & Linear $0 \to 0.05$ \\
+Physics weight & 0.05 (max) & Target contribution \\
+Grad clip & 1.0 (L2) & Prevent explosive updates \\
+EMA beta & 0.95 & Balance 5 physics terms \\
+Train/val split & 95/5 & 17,203 / 905 \\
+Checkpointing & Every 50 epochs + best-val & Resumability \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+\begin{frame}{Phase 1: Data-Only Training (Epochs 1--50)}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lllllll}
+\toprule
+Epoch & Train Loss & Val MSE & $u_r$ & $u_z$ & $u_\theta$ & $p$ / $T$ \\
+\midrule
+1 & 1.16e-2 & 4.83e-3 & 4.40e-5 & 1.69e-3 & 4.44e-5 & 1.68e-3 / 1.37e-3 \\
+10 & 5.92e-5 & 3.11e-4 & 3.61e-6 & 8.57e-5 & 2.46e-6 & 7.24e-5 / 1.47e-4 \\
+\textbf{20} & \textbf{5.26e-5} & \textbf{1.58e-4} & \textbf{1.93e-6} & \textbf{5.78e-5} & \textbf{1.44e-6} & \textbf{4.62e-5 / 5.07e-5} \\
+30 & 2.96e-5 & 1.75e-4 & 1.20e-6 & 6.51e-5 & 1.12e-6 & 4.58e-5 / 6.15e-5 \\
+40 & 4.43e-5 & 3.06e-4 & 2.77e-6 & 1.79e-4 & 9.15e-7 & 6.22e-5 / 6.16e-5 \\
+50 & 2.07e-5 & 2.13e-4 & 1.06e-6 & 7.42e-5 & 9.05e-7 & 1.07e-4 / 2.91e-5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{block}{Best Result}
+Best validation MSE of $\mathbf{1.58\times10^{-4}}$ reached at \textbf{epoch 20}. Automatically saved as \texttt{pretrained\_v2.best.pt}.
+\end{block}
+\end{frame}
+
+\begin{frame}{Phase 2: Physics Loss Ramp (Epochs 50--250)}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lllll}
+\toprule
+Epoch & Phys.\ Weight & Train Loss & Phys.\ Loss & Val MSE ($p$/$T$) \\
+\midrule
+60 & 3.33e-3 & 1.01e-1 & 20.05 & 1.05e-1 / 7.53e-2 \\
+70 & 6.67e-3 & 6.40e-2 & 4.24 & 1.06e-1 / 7.93e-2 \\
+80 & 1.00e-2 & 7.42e-2 & 3.79 & 1.06e-1 / 7.70e-2 \\
+100 & 1.67e-2 & 1.50e-1 & 7.19 & 1.06e-1 / 1.05e-1 \\
+110 & 2.00e-2 & 2.45e-1 & 11.13 & 2.22e-1 / 1.14e-1 \\
+150 & 3.33e-2 & 1.20e-1 & 2.57 & 1.05e-1 / 8.41e-2 \\
+200 & 5.00e-2 & 1.09e-1 & 1.37 & 1.06e-1 / 1.02e-1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{alertblock}{Critical Observation}
+The moment physics loss activated at epoch 50, validation MSE for $p$ and $T$ jumped from $\sim5\times10^{-5}$ to $\sim0.1$ --- \textbf{three orders of magnitude degradation}.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Phase 3: Full Physics Weight (Epochs 250--400)}
+\begin{table}
+\centering
+\small
+\begin{tabular}{llll}
+\toprule
+Epoch & Train Loss & Physics Loss & Val MSE (total) \\
+\midrule
+250 & 8.72e-2 & 9.75e-1 & 0.193 \\
+270 & 6.04e-2 & 4.19e-1 & 0.192 \\
+\textbf{280} & \textbf{1.04e+9} & \textbf{2.16e+10} & 0.256 \\
+\textbf{290} & \textbf{1.18e+14} & \textbf{2.15e+15} & 0.248 \\
+300 & 5.57e-2 & 9.62e-2 & 0.246 \\
+350 & 5.42e-2 & 4.79e-2 & 0.239 \\
+400 & 4.92e-2 & 2.04e-3 & 0.238 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At epochs 280--290, total loss exploded to $10^9$--$10^{14}$ (numerical instability in pressure gradient). Gradient clipping kept parameters bounded; model recovered by epoch 300. Final validation MSE remained $\sim$0.238 --- \textbf{1,500$\times$ worse than the best checkpoint}.
+\end{frame}
+
+\begin{frame}{Stage 2 Summary}
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+Metric & Value \\
+\midrule
+Total wall time & 221.2 minutes (3.69 h) \\
+Time per epoch & $\sim$33 seconds \\
+GPU memory used & $\sim$4.3 GB \\
+\textbf{Best validation MSE} & $\mathbf{1.58\times10^{-4}}$ \textbf{at epoch 20} \\
+Final validation MSE & 0.238 at epoch 400 \\
+Best checkpoint & \texttt{pretrained\_v2.best.pt} \\
+Final checkpoint & \texttt{pretrained\_v2.pt} \\
+IBM-compatible export & \texttt{pretrained\_v2.ibm.pt} (503 KB) \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+% =====================================================================
+\section{Stage 3: IBM Quantum Hardware Fine-Tuning}
+% =====================================================================
+
+\begin{frame}{Rationale}
+The model was pretrained with PennyLane's \texttt{default.qubit} --- a \textbf{noiseless} exact statevector simulation.
+
+\vspace{0.3cm}
+Real IBM hardware introduces two additional noise sources:
+\begin{enumerate}
+  \item \textbf{Gate errors:} $\sim$99.5\% single-qubit, $\sim$99\% two-qubit fidelity on ibm\_fez
+  \item \textbf{Measurement errors:} $\sim$1--2\% readout error per qubit
+\end{enumerate}
+
+\vspace{0.3cm}
+These cause real hardware $\langle Z_i \rangle$ to differ systematically from simulated values. Without adaptation, the pretrained classical head (calibrated to clean features) receives noisy inputs and degrades.
+
+\vspace{0.3cm}
+\textbf{Solution:} Freeze the quantum circuit; retrain only the classical post-network head on real hardware outputs.
+\end{frame}
+
+\begin{frame}{IBM Quantum Backend}
+\begin{table}
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+Property & Value \\
+\midrule
+Backend & \textbf{ibm\_fez} \\
+Processor & 156-qubit Eagle r3 \\
+Queue at start & 0 pending jobs \\
+Error mitigation & M3 twirling (auto) \\
+Dynamical decoupling & Disabled \\
+Shots per job & 4,096 \\
+Instance & hybrid\_qcpinn (flex plan) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+ibm\_fez selected over ibm\_kingston, ibm\_pittsburgh, ibm\_boston, ibm\_miami --- specifically for zero queue depth at submission time.
+\end{frame}
+
+\begin{frame}{Training Configuration}
+\begin{table}
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Training scope & Head-only (19,205 params) \\
+Quantum layer & Frozen (detached) \\
+Calibration points & 8 (spatially distributed) \\
+Selection & Sorted by $r + 0.25z$, evenly spaced \\
+Batch size & 1 (one sample per job) \\
+Optimizer & Adam, lr $=10^{-3}$ \\
+Shots per circuit & 4,096 \\
+Planned epochs & 100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Calibration points cover both near-axis and near-wall regions.
+\end{frame}
+
+\begin{frame}{Session Details}
+Session ran \textbf{23:18 -- 01:23 UTC+2}, 24--25 April 2026.
+
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+Metric & Value \\
+\midrule
+Total jobs submitted & \textbf{500} \\
+Session duration & \textbf{125.0 minutes} \\
+Total quantum shots & \textbf{2,048,000} \\
+Job throughput & \textbf{4.0 jobs/minute} \\
+Jobs completed (DONE) & 500 \\
+Jobs failed & 0 \\
+Average time per job & $\sim$15 seconds \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+500 jobs $\div$ 8 calibration samples $\approx$ \textbf{62 full forward passes} through the quantum circuit on real hardware.
+\end{frame}
+
+\begin{frame}{Session Termination}
+At 01:23 UTC+2, the IBM flex plan allocation for \texttt{hybrid\_qcpinn} was exhausted:
+
+\begin{quote}
+\small\texttt{UserWarning: There is currently no more time available for this instance's plan.}
+\end{quote}
+
+\vspace{0.3cm}
+\begin{itemize}
+  \item The 500 completed job results are stored on IBM's servers
+  \item Retrievable via job IDs saved in \texttt{ibm\_job\_ids.json}
+  \item Second instance \texttt{qpinn\_CG} also exhausted at time of attempt
+  \item Both instances are flex (pay-per-use); require purchasing additional time
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Example IBM Hardware Result}
+Job \texttt{d7lvmk5qrg3c738kkteg} (2026-04-25 01:22:57) --- real quantum expectation values:
+
+\footnotesize
+\begin{columns}
+\column{0.5\textwidth}
+\begin{verbatim}
+Q0:  +0.3417  s=0.0122
+Q1:  +0.7645  s=0.0136
+Q2:  +0.1146  s=0.0171
+Q3:  +0.1715  s=0.0130
+Q4:  -0.1602  s=0.0127
+Q5:  -0.8555  s=0.0088
+Q6:  -0.2679  s=0.0149
+Q7:  +0.6697  s=0.0120
+\end{verbatim}
+\column{0.5\textwidth}
+\begin{verbatim}
+Q8:  +0.3372  s=0.0228
+Q9:  +0.4727  s=0.0173
+Q10: -0.0638  s=0.0172
+Q11: +0.1550  s=0.0163
+Q12: -0.0770  s=0.0161
+Q13: -0.9077  s=0.0070
+Q14: +0.1086  s=0.0161
+Q15: +0.3246  s=0.0186
+\end{verbatim}
+\end{columns}
+
+\normalsize
+Standard deviations consistent with shot noise: $1/\sqrt{4096} \approx 0.0156$. Qubit 13's low noise ($\sigma$=0.007) reflects its near-eigenstate $\langle Z \rangle \approx -0.91$.
+\end{frame}
+
+% =====================================================================
+\section{Weight Diagnostics}
+% =====================================================================
+
+\begin{frame}{Quantum Circuit Weights}
+Trained Rot gate parameters ($\varphi, \theta, \omega$ per qubit per layer), best checkpoint:
+
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+Statistic & Value \\
+\midrule
+Shape & (2 layers, 16 qubits, 3 angles) \\
+Mean & 3.492 rad ($\approx1.11\pi$) \\
+Std & 1.788 rad ($\approx0.57\pi$) \\
+Min & 0.003 rad \\
+Max & 6.272 rad \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item Parameters distributed broadly across full $[0, 2\pi]$ range
+  \item No qubits stuck at degenerate values (0 or $\pi$)
+  \item Diversity indicates circuit uses full rotational freedom
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Quantum LayerNorm}
+LayerNorm parameters, best checkpoint (epoch 20, data-only phase):
+
+\begin{table}
+\centering
+\begin{tabular}{lll}
+\toprule
+Statistic & Scale $\gamma$ & Bias $\beta$ \\
+\midrule
+Min & 0.938 & $-0.035$ \\
+Max & 1.002 & $+0.023$ \\
+Mean & 0.981 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{alertblock}{Interpretation}
+The very narrow $\gamma$ range ($\approx$1.0) and near-zero biases indicate the LayerNorm has \textbf{not yet differentiated} between qubits at epoch 20 --- expected for the data-only phase, since no physics-based field-specific signal has been injected yet.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Classical Weight Distributions}
+\begin{table}
+\centering
+\scriptsize
+\begin{tabular}{lrrr}
+\toprule
+Layer & Mean & Std & Max \\
+\midrule
+ff.B (Fourier, frozen) & 1.247 & 5.134 & 15.0 \\
+coord\_proj.0 & 0.000 & 0.356 & 1.20 \\
+coord\_proj.2 & 0.001 & 0.311 & 1.18 \\
+res1.block.0 & $-0.002$ & 0.294 & 1.10 \\
+res1.block.2 & 0.000 & 0.279 & 1.10 \\
+res2.block.0 & 0.001 & 0.267 & 1.20 \\
+res2.block.2 & 0.002 & 0.282 & 1.20 \\
+to\_quantum.0 & 0.001 & 0.173 & 0.70 \\
+to\_quantum.2 & 0.001 & 0.183 & 0.70 \\
+classical\_skip.0 & 0.004 & 0.251 & 1.10 \\
+\textbf{q\_layer.weights} & \textbf{3.292} & \textbf{1.851} & \textbf{6.30} \\
+q\_norm.weight & 0.490 & 0.548 & 1.25 \\
+post.0 & 0.000 & 0.187 & 1.50 \\
+post.2 & 0.001 & 0.187 & 1.00 \\
+post.4 & $-0.003$ & 0.048 & 0.30 \\
+\bottomrule
+\end{tabular}
+\end{table}
+All classical layers well-conditioned at zero mean, std 0.17--0.36.
+\end{frame}
+
+\begin{frame}{Output Layer and Fourier Frequency Analysis}
+\textbf{Output layer (post.4)} maps 64 hidden units $\to$ 5 fields:
+\begin{itemize}
+  \item $u_z$ has largest weight magnitudes --- dominant kinetic component in vertical pull
+  \item $u_r, u_\theta$ relatively small --- hard constraint ($\times r$) provides strong regularisation
+  \item $T$ has positive output bias ($+0.22$) --- non-centred distribution after normalization
+\end{itemize}
+
+\vspace{0.4cm}
+\textbf{Fourier frequencies (B matrix):}
+\begin{itemize}
+  \item Covers $\approx -15$ to $+15$
+  \item $r$ and $z$ dimensions have asymmetric frequency coverage (independent sampling)
+  \item Frequency index 8 shows highest magnitude ($\sim$12) in $z$-direction
+  \item Frozen at initialization; fixed throughout training and inference
+\end{itemize}
+\end{frame}
+
+% =====================================================================
+\section{Physics Loss Degradation Analysis}
+% =====================================================================
+
+\begin{frame}{Quantitative Impact}
+\begin{table}
+\centering
+\begin{tabular}{lllr}
+\toprule
+Field & Best MSE (ep.20) & Final MSE (ep.400) & Degradation \\
+\midrule
+$u_r$ & $1.93\times10^{-6}$ & $1.79\times10^{-4}$ & \textbf{93$\times$} \\
+$u_z$ & $5.78\times10^{-5}$ & $8.83\times10^{-3}$ & \textbf{153$\times$} \\
+$u_\theta$ & $1.44\times10^{-6}$ & $5.06\times10^{-5}$ & \textbf{35$\times$} \\
+\textbf{$p$} & $\mathbf{4.62\times10^{-5}}$ & $\mathbf{0.100}$ & \textbf{2,165$\times$} \\
+\textbf{$T$} & $\mathbf{5.07\times10^{-5}}$ & $\mathbf{0.129}$ & \textbf{2,544$\times$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pressure and temperature suffered the most severe degradation --- over three orders of magnitude.
+\end{frame}
+
+\begin{frame}{Root Cause}
+The pressure coefficient $p_{coeff} = 134{,}128$ creates a severe scale imbalance:
+
+\begin{itemize}
+  \item Velocity gradient terms scale as $O(1/Re) = O(1/15) \approx 0.067$
+  \item Pressure gradient terms scale as $p_{coeff} = 134{,}128$
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Ratio $\approx$ 2,000,000 : 1}
+
+\vspace{0.3cm}
+The physics loss gradient with respect to network parameters is amplified by this coefficient, overriding the data loss signal for pressure. The model learns to satisfy pressure momentum terms \textit{at the expense of data accuracy}.
+
+\vspace{0.3cm}
+Temperature is affected indirectly through velocity-field coupling in the energy equation.
+\end{frame}
+
+\begin{frame}{Physics Loss Explosion at Epoch 280}
+\begin{verbatim}
+[0280/400] loss=1.0368e+09 data=5.0592e-02 phys=2.1591e+10
+[0290/400] loss=1.1795e+14 data=4.9662e-02 phys=2.1481e+15
+[0300/400] loss=5.5708e-02 data=4.8543e-02 phys=9.6150e-02
+\end{verbatim}
+
+\vspace{0.3cm}
+\begin{itemize}
+  \item Data loss remained stable ($\sim$0.05) throughout --- explosion entirely in physics residual
+  \item Occurs when predictions briefly satisfy boundary conditions but violate interior PDE residuals in high-gradient regions
+  \item Gradient clipping (max norm 1.0) prevented catastrophic parameter updates
+  \item Model recovered by epoch 300
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Recommended Fix}
+\begin{alertblock}{Actionable Recommendation}
+Reduce physics weight from 0.05 to \textbf{0.001--0.005}, and apply per-field weighting to compensate for the pressure coefficient scale mismatch.
+\end{alertblock}
+
+\vspace{0.3cm}
+Specifically: weight the pressure physics loss term by
+\[
+\frac{1}{p_{coeff}^2} \approx 5.6\times10^{-11}
+\]
+to bring it to the same scale as the velocity residuals.
+\end{frame}
+
+% =====================================================================
+\section{Checkpoint Inventory}
+% =====================================================================
+
+\begin{frame}{Checkpoint Inventory}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lllll}
+\toprule
+File & Epoch & Val MSE & Size & Use \\
+\midrule
+\texttt{pretrained\_v2.best.pt} & 20 & $\mathbf{1.58\times10^{-4}}$ & 1.5 MB & \textbf{Recommended} \\
+\texttt{pretrained\_v2.ibm.pt} & 400 & 0.238 & 503 KB & IBM export \\
+\texttt{pretrained\_v2.pt} & 400 & 0.238 & 1.5 MB & Final checkpoint \\
+\texttt{pretrained\_16q.pt} & 650 & $\sim3\times10^{-4}$ & 503 KB & v1 (Brev A100) \\
+\texttt{fast\_8q.pt} & 120 & $\sim4.6\times10^{-3}$ & 495 KB & Mac M4 PoC \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\texttt{pretrained\_v2.best.pt} (epoch 20) is recommended for IBM fine-tuning and deployment --- it precedes the physics-loss-induced degradation.
+\end{frame}
+
+% =====================================================================
+\section{Compute Resource Summary}
+% =====================================================================
+
+\begin{frame}{HPC Resources (Brev H100 DGX)}
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+Metric & Value \\
+\midrule
+Total wall time & 221.2 minutes (3.69 h) \\
+GPU-hours consumed & $\sim$3.7 H100 GPU-hours \\
+GPU memory peak & $\sim$4.3 GB \\
+Batch iterations & 134/epoch $\times$ 400 = 53,600 \\
+Quantum circuit evals (sim.) & 53,600 $\times$ 256 $\approx$ 13.7M \\
+Best result & Val MSE $=1.58\times10^{-4}$ (ep.\ 20) \\
+Compute cost (approx.) & $\sim\$3.70$ (H100 @ $\sim\$1$/h) \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+\begin{frame}{IBM Quantum Hardware Resources}
+\begin{table}
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+Metric & Value \\
+\midrule
+Backend & ibm\_fez (156-qubit Eagle r3) \\
+Total jobs & 500 \\
+Shots per job & 4,096 \\
+Total quantum shots & 2,048,000 \\
+Execution time & 125.0 minutes ($\sim$2.1 h) \\
+Job throughput & 4.0 jobs/minute \\
+Circuit depth (16q, 2 layers) & $\sim$50 gates/shot \\
+Total gate operations & $\sim$100M on real QPU \\
+Training completed & $\sim$62 epochs equivalent (partial) \\
+Termination & Flex plan time exhausted \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+% =====================================================================
+\section{Key Findings}
+% =====================================================================
+
+\begin{frame}{Key Findings}
+\begin{enumerate}
+  \item \textbf{The data-only model (epoch 20) is best for deployment.} Val MSE $=1.58\times10^{-4}$ across all fields; physics loss at weight 0.05 is counterproductive given the pressure coefficient mismatch.
+  \item \textbf{H100 is well-suited for this workload.} $2^{16}$ statevector simulation via PyTorch autograd on CUDA used only 4.3 GB of 80 GB VRAM.
+  \item \textbf{500 IBM quantum circuits executed successfully on real hardware.} 2,048,000 shots on ibm\_fez --- zero failures.
+  \item \textbf{Quantum layer's contribution is unquantified.} With 0.076\% of parameters, an ablation study is essential.
+  \item \textbf{IBM plan management requires attention.} Both flex instances exhausted during fine-tuning; reserved plan recommended for sustained workloads.
+\end{enumerate}
+\end{frame}
+
+% =====================================================================
+\section{Next Steps}
+% =====================================================================
+
+\begin{frame}{Next Steps}
+\begin{table}
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Priority & Action & Compute \\
+\midrule
+Critical & Ablation: classical-only baseline & 1$\times$ H100 ($\sim$4h) \\
+Critical & Re-train, physics weight 0.001--0.005 & 1$\times$ H100 ($\sim$4h) \\
+Critical & Retrieve 500 IBM job results & Minimal (API) \\
+High & Complete IBM fine-tuning, renewed plan & $\sim$500 more IBM jobs \\
+High & Per-field physics weighting & Architecture change \\
+Medium & Parametric model ($Re, \Omega, v_{pull}$ inputs) & 5--10 CFD + H100 run \\
+Medium & Formal ablation, 4--5 baselines & 3--4$\times$ H100 runs \\
+Low & Deploy inference API & CPU only \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+% =====================================================================
+\section{Appendix}
+% =====================================================================
+
+\begin{frame}{Appendix A: Software Versions}
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+Package & Version \\
+\midrule
+Python & 3.12 (Brev) / 3.14 (local) \\
+PyTorch & 2.11.0+cu130 (Brev) \\
+PennyLane & 0.44.1 \\
+PennyLane-Lightning & 0.44.0 \\
+Qiskit & 2.3.0 \\
+Qiskit-IBM-Runtime & 0.45.0 \\
+Qiskit-Aer & 0.17.2 \\
+pandas & 3.0.2 \\
+numpy & 1.26.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{frame}
+
+\begin{frame}{Appendix B: File Inventory}
+\scriptsize
+\begin{tabular}{ll}
+\toprule
+File & Description \\
+\midrule
+\texttt{cz\_melt\_raw.txt} & CFD dataset (18,108 points) \\
+\texttt{cg-hqpinn-brev.py} & H100 training script (resume + val logging) \\
+\texttt{CG\_HQPINN\_IBMtest\_16q\_effective.py} & IBM quantum fine-tuning script \\
+\texttt{cg-hqpinn-mac-local.py} & Local 8-qubit fast version \\
+\texttt{visualize\_checkpoint.py} & Weight diagnostic plots \\
+\texttt{make\_summary.py} & Training summary charts \\
+\texttt{pretrained\_v2.best.pt} & Best model (epoch 20) \\
+\texttt{pretrained\_v2.ibm.pt} & IBM-compatible export \\
+\texttt{pretrained\_v2.pt} & Final epoch 400 checkpoint \\
+\texttt{pretrained\_16q.pt} & v1 (Brev A100, March 2026) \\
+\texttt{brev\_train.log} & Complete H100 training log \\
+\texttt{ibm\_train.log} & IBM session log \\
+\texttt{ibm\_job\_ids.json} & 500 IBM job IDs with timestamps \\
+\texttt{REPORT.md / README.md} & Technical report / project overview \\
+\texttt{diagnostics/} & All 14 diagnostic plots \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}
+\centering
+\Large \textbf{Thank you}
+
+\vspace{0.5cm}
+\normalsize
+Questions?
+\end{frame}
+
+\end{document}

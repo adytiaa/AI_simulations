@@ -1,0 +1,7 @@
+\beamer@sectionintoc {1}{Introduction and Motivation}{3}{0}{1}
+\beamer@sectionintoc {2}{Dataset}{6}{0}{2}
+\beamer@sectionintoc {3}{Model Architecture}{8}{0}{3}
+\beamer@sectionintoc {4}{Physics Loss}{12}{0}{4}
+\beamer@sectionintoc {5}{Stage 1: Local Proof of Concept}{14}{0}{5}
+\beamer@sectionintoc {6}{Stage 2: H100 DGX Pretraining}{15}{0}{6}
+\beamer@sectionintoc {7}{Stage 3: IBM Quantum Hardware Fine-Tuning}{21}{0}{7}

@@ -1,0 +1,658 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage[export]{adjustbox}
+
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{navigation symbols}{}
+
+% Display an equation at natural size, shrinking only if it exceeds the text width
+\newcommand{\eq}[1]{\[\adjustbox{max width=0.94\linewidth}{$\displaystyle #1$}\]}
+
+\title{Hybrid Quantum--Classical Physics-Informed Neural Networks\\for Accelerating Multiphysics Simulation}
+\subtitle{Fourier features, data re-uploading and parameterised quantum circuits}
+\author{Aswin}
+\date{October 2026}
+
+\begin{document}
+
+% =====================================================================
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+% =====================================================================
+\section{Motivation}
+% =====================================================================
+
+\begin{frame}{Accurate simulation is too slow for design loops}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\begin{itemize}
+  \item High-fidelity multiphysics CFD takes hours to days per run.
+  \item The real cost is the parameter sweep: every operating point is a new simulation.
+  \item Real-time control and digital twins need full fields in milliseconds.
+  \item Goal: a surrogate that keeps the governing physics, generalises across operating conditions, and runs fast.
+\end{itemize}
+\column{0.48\textwidth}
+\begin{block}{Silicon Czochralski (CZ) growth}
+Melt convection, crucible and crystal rotation, and thermal structure largely set defect density and crystal quality.
+\end{block}
+\begin{block}{LH$_2$ cryogenic boil-off}
+Turbulent convection with phase change in cryogenic storage. Planned benchmark; no results yet.
+\end{block}
+\end{columns}
+\end{frame}
+
+% =====================================================================
+\section{Background}
+% =====================================================================
+
+\begin{frame}{Physics-informed neural networks (PINNs)}
+\begin{itemize}
+  \item A network $\hat u_\theta(x)$ is trained so that the governing PDEs and the boundary and initial conditions are satisfied.
+  \item Derivatives come from automatic differentiation, so no mesh is needed.
+  \item Loss: $\mathcal{L} = \mathcal{L}_{\mathrm{PDE}} + \mathcal{L}_{\mathrm{BC}} + \mathcal{L}_{\mathrm{IC}} + \dots$
+  \item Needs less labelled data and fits coupled multiphysics naturally.
+  \item Limitation: one PINN solves one parameter setting. Changing parameters means retraining, which motivates neural operators (PINO).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Bottleneck 1: spectral bias}
+\begin{itemize}
+  \item Standard MLPs fit low-frequency structure first. High-frequency content is learned slowly.
+  \item Coupled transport fields have sharp gradients: thermal boundary layers, wall shear, and swirl near rotating walls.
+  \item Classical remedy: Fourier feature mapping of the inputs before the network (Tancik et al., 2020).
+  \item The quantum layer adds a second, trainable nonlinear feature map on top of the Fourier encoding.
+\end{itemize}
+\vspace{0.3cm}
+\begin{alertblock}{Hypothesis to test}
+The quantum feature map improves high-frequency fit beyond Fourier features alone. This is tested by the ablation planned on the outlook slides.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Bottleneck 2: loss-term imbalance}
+\begin{itemize}
+  \item Gradient pathologies: a loss term with larger raw gradients dominates training (Wang et al., 2021).
+  \item A low \emph{total} loss can hide poor boundary satisfaction and weak physical consistency.
+\end{itemize}
+\vspace{0.2cm}
+\begin{center}
+\small
+\begin{tabular}{lccc}
+\toprule
+Trainer (heat equation benchmark) & PDE loss & BC/IC loss & Rel.\ $L_2$ error \\
+\midrule
+Fixed weights (baseline) & $3.96\times10^{-3}$ & $1.15\times10^{-3}$ & $0.084$ \\
+Normalised gradients & $9.74\times10^{-3}$ & $9.05\times10^{-4}$ & $0.054$ \\
+Adaptive weights & $\mathbf{8.22\times10^{-7}}$ & $2.00\times10^{-1}$ & $\mathbf{1.368}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+\begin{block}{Lesson}
+The adaptive model has the smallest PDE residual and the worst solution. Report the components and an external error, not only the weighted total.
+\end{block}
+\end{frame}
+
+\begin{frame}{Bottleneck 3: scale of coupled fields}
+\begin{itemize}
+  \item Five coupled outputs with very different magnitudes: $u_r, u_z, u_\theta, p, T$.
+  \item In the CZ model the pressure coefficient is $p_{\mathrm{coeff}} = p_{\mathrm{scale}}/v_{\mathrm{scale}}^2 = 134{,}128$.
+  \item Velocity-gradient terms scale as $1/Re \approx 0.067$; pressure terms carry $p_{\mathrm{coeff}}$.
+  \item Ratio of pressure to velocity terms is about $2\times10^{6}\!:\!1$.
+  \item Consequence: the pressure residual can override the data signal.
+\end{itemize}
+\vspace{0.3cm}
+\begin{alertblock}{Why this matters}
+This mismatch is the main stability problem found in our experiments (see Results).
+\end{alertblock}
+\end{frame}
+
+% =====================================================================
+\section{Proposed framework}
+% =====================================================================
+
+\begin{frame}{Hybrid QPINN architecture}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\centering
+\begin{tabular}{c}
+Input $(r,z)$ \\
+$\downarrow$ \\
+Fourier features $[2\to48]$ \\
+$\downarrow$ \\
+Coordinate projector $[50\to128\to128]$ \\
+$\downarrow$ \\
+ResidualMLP $\times 2$ $[128\to128]$ \\
+\end{tabular}
+\column{0.48\textwidth}
+\centering
+\textbf{Quantum branch} \\
+to\_quantum $[128\to64\to16]$, $\pi\tanh(\cdot)$ \\
+$\downarrow$ \\
+16-qubit circuit, 2 layers \\
+$\downarrow$ \\
+LayerNorm(16) \\[6pt]
+\textbf{Classical skip} \\
+$[128\to64]$, tanh
+\end{columns}
+\vspace{0.3cm}
+\begin{center}
+Concatenate $[64+16+2=82]$ $\rightarrow$ post network $[82\to128\to64\to5]$ \\
+$\rightarrow$ hard constraints on $u_r$ and $u_\theta$
+\end{center}
+\end{frame}
+
+\begin{frame}{Ingredient 1: Fourier feature mapping}
+\begin{itemize}
+  \item Fixed random projection $B \in \mathbb{R}^{2\times 24}$, entries drawn from $\mathcal{N}(0, 6^2)$ and frozen at initialisation.
+  \item Feature map: $\gamma(x) = [\sin(2\pi xB),\ \cos(2\pi xB)]$, giving 48 features from $(r,z)$.
+  \item Frequencies reach about 15 cycles per unit length in normalised coordinates.
+  \item Frozen, so it adds no trainable weights beyond the 48 entries of $B$.
+  \item Purpose: give the network access to high-frequency content from the first layer.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Ingredient 2: shallow parameterised quantum circuit}
+\begin{itemize}
+  \item 16 qubits and 2 variational layers. Inputs enter as angles $\pi\tanh(\cdot) \in [-\pi,\pi]$.
+\end{itemize}
+\vspace{0.1cm}
+Each layer applies:
+\begin{enumerate}
+  \item Data encoding: $R_Y(\theta_i)$ on every qubit.
+  \item Data re-upload: $R_Z(0.5\,\theta_{(i+\ell)\bmod 16})$.
+  \item Trainable rotation: $\mathrm{Rot}(\varphi_i,\theta_i,\omega_i)$, 48 parameters per layer.
+  \item Entanglement: CZ gates in a ring, closing with CZ between qubits 15 and 0.
+\end{enumerate}
+\vspace{0.1cm}
+Readout: $\langle Z_i \rangle$ for $i=0,\dots,15$, giving 16 features, followed by LayerNorm. Total trainable quantum parameters: \textbf{96}.
+\end{frame}
+
+\begin{frame}{Ingredient 3: data re-uploading}
+\begin{itemize}
+  \item A variational circuit that encodes its data only once is a low-complexity function of the input.
+  \item Data re-uploading encodes the same inputs again in each layer (P\'erez-Salinas et al., 2020).
+  \item The re-upload angle is shifted across qubits, $\theta_{(i+\ell)\bmod 16}$, so each layer sees a different combination of input features.
+  \item Intended effect: a richer input--output function from a shallow circuit.
+  \item On hardware the circuit has about 50 gates per shot.
+\end{itemize}
+\vspace{0.3cm}
+\begin{block}{Design rule}
+The quantum layer is a feature-extraction module. The classical network carries most of the computation.
+\end{block}
+\end{frame}
+
+\begin{frame}{Parameter budget: the quantum layer is deliberately small}
+\begin{center}
+\small
+\begin{tabular}{lr}
+\toprule
+Component & Parameters \\
+\midrule
+Coordinate projector (2 layers) & 23,040 \\
+ResidualMLP blocks (2 $\times$ 2 layers) & 66,048 \\
+to\_quantum (2 layers) & 9,296 \\
+Classical skip & 8,256 \\
+\textbf{Quantum circuit weights} & \textbf{96} \\
+Quantum LayerNorm & 32 \\
+Post network (3 layers) & 19,205 \\
+Fourier matrix $B$ (frozen) & 48 \\
+\midrule
+\textbf{Total} & \textbf{126,021} \\
+\textbf{Quantum fraction} & \textbf{0.076\%} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+\begin{alertblock}{Implication}
+Any performance difference must be traced to the quantum layer by a controlled ablation, not assumed.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Governing equations (1/2): mass and momentum}
+Steady, axisymmetric, incompressible Navier--Stokes, nondimensional.
+\vspace{0.2cm}
+
+\textbf{Continuity:}
+\eq{\frac{\partial (r\,u_r)}{\partial r} + r\,\frac{\partial u_z}{\partial z} = 0}
+
+\textbf{Radial momentum:}
+\eq{u_r u_{r,r} + u_z u_{r,z} - \frac{u_\theta^2}{r} + p_{\mathrm{coeff}}\,p_{,r} - \frac{1}{Re}\Big[u_{r,rr} + \frac{u_{r,r}}{r} - \frac{u_r}{r^2} + u_{r,zz}\Big] = 0}
+
+\textbf{Axial momentum (with buoyancy):}
+\eq{u_r u_{z,r} + u_z u_{z,z} + p_{\mathrm{coeff}}\,p_{,z} - \frac{1}{Re}\Big[u_{z,rr} + \frac{u_{z,r}}{r} + u_{z,zz}\Big] - \frac{Gr}{Re^2}\,\theta = 0}
+\end{frame}
+
+\begin{frame}{Governing equations (2/2): swirl and energy}
+\textbf{Swirl (angular momentum):}
+\eq{u_r u_{\theta,r} + u_z u_{\theta,z} + \frac{u_r u_\theta}{r} - \frac{1}{Re}\Big[u_{\theta,rr} + \frac{u_{\theta,r}}{r} - \frac{u_\theta}{r^2} + u_{\theta,zz}\Big] = 0}
+
+\textbf{Energy:}
+\eq{u_r \theta_r + u_z \theta_z - \frac{1}{Pr\,Re}\Big[\theta_{rr} + \frac{\theta_r}{r} + \theta_{zz}\Big] = 0}
+
+\vspace{0.2cm}
+\begin{center}
+\small
+$\theta = (T-T_{\min})/(T_{\max}-T_{\min})$, \quad $Re = 15$, \quad $Pr = 28.463$, \quad $Gr = 8000$, \quad $p_{\mathrm{coeff}} = 134{,}128$
+\end{center}
+\end{frame}
+
+\begin{frame}{Physics loss: implementation and constraints}
+\begin{itemize}
+  \item All derivatives via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}.
+  \item Five residual terms (continuity, radial, axial, swirl, energy), normalised by EMA weighting ($\beta = 0.95$).
+  \item Physics weight ramped from 0 at epoch 50 to 0.05 over 200 epochs. Gradient clipping at L2 norm 1.0.
+  \item Hard constraints: $u_r = r\cdot\mathrm{raw}_0$ and $u_\theta = r\cdot\mathrm{raw}_2$, so the velocity vanishes on the axis by construction.
+\end{itemize}
+\vspace{0.2cm}
+\begin{alertblock}{Quantum detachment}
+The quantum output is detached during the physics loss, so physics gradients do not flow through the quantum circuit. The physics loss therefore cannot directly shape the quantum layer in the current implementation.
+\end{alertblock}
+\end{frame}
+
+% =====================================================================
+\section{Experimental setup}
+% =====================================================================
+
+\begin{frame}{Benchmark data: silicon CZ melt}
+\begin{columns}[T,onlytextwidth]
+\column{0.5\textwidth}
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Property & Value \\
+\midrule
+CFD source & Axisymmetric melt solver \\
+Domain & $r,z\in[0,\,0.3]$ m \\
+Total points & 18,108 \\
+Inputs / outputs & $(r,z)$ / $u_r,u_z,u_\theta,p,T$ \\
+Temperature range & 1685--1750 K \\
+Split (random, spatial) & 17,203 train / 905 val \\
+\bottomrule
+\end{tabular}
+\end{center}
+\column{0.46\textwidth}
+\begin{block}{Dimensionless setup}
+Grashof $Gr=8000$, Prandtl $Pr=28.463$, Reynolds $Re=15$.
+\end{block}
+\begin{block}{Caveat}
+The reference fields are steady, laminar and axisymmetric. They are controlled reference cases, not fully resolved industrial melt flow.
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Evaluation protocol}
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{itemize}
+  \item \textbf{Held-out operating condition:} withhold one whole process setting, not random points.
+  \item \textbf{Components:} report unweighted PDE and BC/IC losses separately.
+  \item \textbf{Fields:} report error per field, not one pooled score.
+  \item \textbf{Matched budgets:} same optimiser, sampling, seed and training budget for every comparison.
+\end{itemize}
+\column{0.46\textwidth}
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+Parameter sweep & Range & Held out \\
+\midrule
+$T_{\mathrm{hot}}$ (hot wall) & 1730--1785 K & 1780 K \\
+$\omega_c$ (crucible) & $-10$ to $-1$ rpm & $-4$ rpm \\
+$\omega_s$ (crystal) & 4--20 rpm & 7 rpm \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+\begin{alertblock}{Status}
+\footnotesize The QPINN runs so far used a random spatial split. Generalisation to an unseen operating condition is \textbf{not yet tested} for the quantum model.
+\end{alertblock}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Training configuration (classical pretraining on GPU)}
+\begin{columns}[T,onlytextwidth]
+\column{0.56\textwidth}
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Hyperparameter & Value \\
+\midrule
+Epochs & 400 (about 3.7 h on one H100) \\
+Batch size & 256 \\
+Learning rate & $2\times10^{-3}$, cosine to $10^{-6}$ \\
+Physics warm-up & Epoch 50 \\
+Physics ramp & 200 epochs, 0 $\to$ 0.05 \\
+Gradient clip & L2 norm 1.0 \\
+EMA $\beta$ & 0.95 \\
+Checkpoints & Every 50 epochs and best validation \\
+\bottomrule
+\end{tabular}
+\end{center}
+\column{0.42\textwidth}
+\begin{block}{Development path}
+Built first on a Mac M4 with 8 qubits and one layer. After 120 epochs the validation MSE was about $4.6\times10^{-3}$. This confirmed the pipeline before GPU training.
+\end{block}
+\begin{block}{Simulation note}
+The 16-qubit circuit is simulated exactly as a $2^{16}$-amplitude statevector on one GPU. That is small enough for classical hardware to handle.
+\end{block}
+\end{columns}
+\end{frame}
+
+% =====================================================================
+\section{Results}
+% =====================================================================
+
+\begin{frame}{Phase 1: data-only training converges quickly}
+\begin{center}
+\small
+\begin{tabular}{lllll}
+\toprule
+Epoch & Train loss & Val MSE (total) & Val $p$ & Val $T$ \\
+\midrule
+1  & $1.16\times10^{-2}$ & $4.83\times10^{-3}$ & $1.68\times10^{-3}$ & $1.37\times10^{-3}$ \\
+10 & $5.92\times10^{-5}$ & $3.11\times10^{-4}$ & $7.24\times10^{-5}$ & $1.47\times10^{-4}$ \\
+\textbf{20} & \textbf{$5.26\times10^{-5}$} & \textbf{$1.58\times10^{-4}$} & \textbf{$4.62\times10^{-5}$} & \textbf{$5.07\times10^{-5}$} \\
+30 & $2.96\times10^{-5}$ & $1.75\times10^{-4}$ & $4.58\times10^{-5}$ & $6.15\times10^{-5}$ \\
+50 & $2.07\times10^{-5}$ & $2.13\times10^{-4}$ & $1.07\times10^{-4}$ & $2.91\times10^{-5}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+\begin{block}{Best checkpoint}
+Validation MSE $\mathbf{1.58\times10^{-4}}$ at epoch 20, in-distribution (random spatial split).
+\end{block}
+\end{frame}
+
+\begin{frame}{Phase 2: the physics ramp degrades validation error}
+\begin{center}
+\small
+\begin{tabular}{llll}
+\toprule
+Epoch & Physics weight & Val $p$ & Val $T$ \\
+\midrule
+50  & 0 (ramp starts) & $\sim 5\times10^{-5}$ & $\sim 5\times10^{-5}$ \\
+60  & $3.33\times10^{-3}$ & $1.05\times10^{-1}$ & $7.53\times10^{-2}$ \\
+80  & $1.00\times10^{-2}$ & $1.06\times10^{-1}$ & $7.70\times10^{-2}$ \\
+110 & $2.00\times10^{-2}$ & $2.22\times10^{-1}$ & $1.14\times10^{-1}$ \\
+200 & $5.00\times10^{-2}$ & $1.06\times10^{-1}$ & $1.02\times10^{-1}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+\begin{alertblock}{Critical observation}
+Once the physics loss activated, validation error for $p$ and $T$ rose from about $5\times10^{-5}$ to about $0.1$: roughly three orders of magnitude worse.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Degradation by field and final result}
+\begin{center}
+\small
+\begin{tabular}{lllr}
+\toprule
+Field & Best MSE (epoch 20) & Final MSE (epoch 400) & Factor \\
+\midrule
+$u_r$ & $1.93\times10^{-6}$ & $1.79\times10^{-4}$ & 93$\times$ \\
+$u_z$ & $5.78\times10^{-5}$ & $8.83\times10^{-3}$ & 153$\times$ \\
+$u_\theta$ & $1.44\times10^{-6}$ & $5.06\times10^{-5}$ & 35$\times$ \\
+$p$ & $\mathbf{4.62\times10^{-5}}$ & $\mathbf{0.100}$ & $\mathbf{2{,}165\times}$ \\
+$T$ & $\mathbf{5.07\times10^{-5}}$ & $\mathbf{0.129}$ & $\mathbf{2{,}544\times}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+Final validation MSE is $0.238$ at epoch 400, about 1,500$\times$ worse than the best checkpoint. Pressure and temperature degrade most.
+\end{frame}
+
+\begin{frame}[fragile]{Root cause: physics-loss instability}
+\begin{columns}[T,onlytextwidth]
+\column{0.58\textwidth}
+\scriptsize
+\begin{verbatim}
+[0280/400] loss=1.0368e+09 data=5.0592e-02 phys=2.1591e+10
+[0290/400] loss=1.1795e+14 data=4.9662e-02 phys=2.1481e+15
+[0300/400] loss=5.5708e-02 data=4.8543e-02 phys=9.6150e-02
+\end{verbatim}
+\column{0.38\textwidth}
+\footnotesize
+\begin{itemize}
+  \item Data loss stayed near 0.05. The explosion sits entirely in the physics residual.
+  \item Gradient clipping limited the damage; the model recovered by epoch 300.
+  \item Cause: the $p_{\mathrm{coeff}}$ scale mismatch from Bottleneck 3.
+\end{itemize}
+\end{columns}
+\vspace{0.2cm}
+\begin{alertblock}{Candidate fixes (to be tested)}
+\footnotesize Physics weight 0.001--0.005; per-field weighting of the pressure residual (candidate $1/p_{\mathrm{coeff}}^2 \approx 5.6\times10^{-11}$); re-check the pressure nondimensionalisation.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Stage 3: why fine-tune on IBM quantum hardware?}
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Hardware noise}
+\begin{itemize}\small
+  \item Gate fidelity on ibm\_fez: about 99.5\% single-qubit and 99\% two-qubit.
+  \item Readout error: about 1--2\% per qubit.
+\end{itemize}
+\end{block}
+\begin{block}{Consequence}
+Hardware $\langle Z_i\rangle$ differs systematically from simulated values. The pretrained head receives shifted inputs and degrades.
+\end{block}
+\begin{exampleblock}{Adaptation}
+Freeze the quantum circuit. Retrain only the classical post-network head on hardware outputs.
+\end{exampleblock}
+\column{0.46\textwidth}
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Trainable scope & Head only (19,205) \\
+Calibration points & 8 (near-axis and near-wall) \\
+Batch size & 1 sample per job \\
+Optimiser & Adam, lr $10^{-3}$ \\
+Shots per circuit & 4,096 \\
+Planned epochs & 100 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{columns}
+\end{frame}
+
+\begin{frame}{IBM hardware execution: 500 jobs on ibm\_fez}
+\begin{columns}[T,onlytextwidth]
+\column{0.46\textwidth}
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Backend property & Value \\
+\midrule
+Processor & 156-qubit Eagle r3 \\
+Error mitigation & M3 twirling \\
+Queue at submission & 0 pending jobs \\
+Instance & hybrid\_qcpinn (flex) \\
+\bottomrule
+\end{tabular}
+\end{center}
+\column{0.50\textwidth}
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Execution metric & Value \\
+\midrule
+Jobs completed / failed & 500 / 0 \\
+Total shots & 2,048,000 \\
+Session duration & 125.0 min \\
+Throughput & 4.0 jobs/min \\
+Forward passes equivalent & about 62 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{columns}
+\vspace{0.2cm}
+\begin{alertblock}{Session ended by plan limit}
+The session stopped at 01:23 UTC+2 when the flex-plan time ran out, at about 62 of 100 planned epochs. All 500 results are stored on IBM servers under saved job IDs. A second instance was also exhausted.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Hardware output sanity check}
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Qubit & $\langle Z\rangle$ & $\sigma$ reported & $\sigma$ shot-noise estimate \\
+\midrule
+Q0  & $+0.3417$ & 0.0122 & 0.0147 \\
+Q1  & $+0.7645$ & 0.0136 & 0.0101 \\
+Q5  & $-0.8555$ & 0.0088 & 0.0081 \\
+Q13 & $-0.9077$ & 0.0070 & 0.0066 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2cm}
+Shot-noise estimate: $\sigma_i = \sqrt{(1-\langle Z_i\rangle^2)/4096}$. The reported spread is close to this estimate, with deviations up to about 35\%. Hardware drift and gate noise are not yet separated from sampling noise.
+\end{frame}
+
+\begin{frame}{Trained quantum parameters and classical weights}
+\begin{columns}[T,onlytextwidth]
+\column{0.50\textwidth}
+\begin{block}{Rotation angles (best checkpoint)}
+\begin{itemize}\small
+  \item Mean 3.49 rad, std 1.79 rad, range 0.003 to 6.27 rad.
+  \item Spread across the full $[0,2\pi]$ range.
+  \item No qubit stuck at a degenerate value (0 or $\pi$).
+\end{itemize}
+\end{block}
+\begin{block}{Quantum LayerNorm}
+Scale $\gamma \in [0.94, 1.00]$, bias within $\pm 0.03$. At epoch 20 the qubits have not yet been differentiated, as expected for the data-only phase.
+\end{block}
+\column{0.46\textwidth}
+\begin{block}{Classical layers}
+\small All well conditioned: zero mean, standard deviation 0.17 to 0.36 for hidden layers.
+\end{block}
+\begin{alertblock}{Reading}
+The circuit uses its full rotational range, but the quantum layer's contribution to accuracy is still unmeasured.
+\end{alertblock}
+\end{columns}
+\end{frame}
+
+% =====================================================================
+\section{Outlook}
+% =====================================================================
+
+\begin{frame}{Claims we can make today}
+\renewcommand{\arraystretch}{1.1}
+\footnotesize
+\begin{tabular}{p{0.36\textwidth} p{0.15\textwidth} p{0.40\textwidth}}
+\toprule
+Claim & Status & Evidence \\
+\midrule
+Pipeline runs end to end on GPU and real QPU & \textbf{Shown} & 500/500 IBM jobs completed, none failed \\
+Data-only model fits CZ fields in distribution & \textbf{Shown} & Val MSE $1.58\times10^{-4}$, random split \\
+Physics loss improves field accuracy & Not shown & Validation error rose 10$^{2}$--10$^{3}\times$ at weight 0.05 \\
+Quantum layer adds accuracy over classical & Not shown & Ablation not yet run \\
+Faster convergence than classical PINN/PINO & Not shown & No matched classical baseline yet \\
+Better generalisation to new conditions & Not tested & No case-wise holdout for QPINN \\
+Lower computational cost & Not shown & H100 3.7 h, QPU 2.1 h; no classical timing \\
+Quantum computational advantage & Not claimed & 16-qubit statevector is classically simulable \\
+Concentration and evolving interfaces & Out of scope & Single-phase, steady, laminar, prescribed surface \\
+LH$_2$ boil-off results & Planned & Benchmark defined, no data yet \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{Critical next experiments}
+\renewcommand{\arraystretch}{1.1}
+\small
+\begin{tabular}{llr}
+\toprule
+Priority & Experiment & Compute \\
+\midrule
+Critical & Classical-only baseline with matched parameter budget & 1$\times$ H100, about 4 h \\
+Critical & Random-feature control in place of the quantum circuit & 1$\times$ H100, about 4 h \\
+Critical & Retrain with physics weight 0.001--0.005 & 1$\times$ H100, about 4 h \\
+Critical & Retrieve the 500 IBM job results (API) & Minimal \\
+High & Case-wise holdout on the three CZ sweeps & 3 training runs \\
+High & Per-field physics weighting (pressure residual) & Architecture change \\
+High & Complete head fine-tuning on IBM, renewed plan & About 500 more jobs \\
+Medium & LH$_2$ boil-off benchmark with CFD reference data & CFD + H100 \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{Path to real-time digital twins}
+\begin{columns}[T,onlytextwidth]
+\column{0.24\textwidth}
+\begin{block}{Now}
+\footnotesize End-to-end pipeline validated on GPU and IBM hardware. Best data-only checkpoint in hand.
+\end{block}
+\column{0.24\textwidth}
+\begin{block}{Next}
+\footnotesize Physics-consistent training: weight fix, per-field weights, and ablation against classical baselines.
+\end{block}
+\column{0.24\textwidth}
+\begin{block}{Then}
+\footnotesize Generalisation: case-wise holdout, parametric inputs ($Re$, rotation rates, pull rate), and the LH$_2$ benchmark.
+\end{block}
+\column{0.24\textwidth}
+\begin{exampleblock}{Goal}
+\footnotesize Digital twin: agentic CFD generates verified training cases from one prompt, a physics validator checks the outputs, and CPU inference serves the surrogate.
+\end{exampleblock}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Key takeaways}
+\begin{enumerate}\setlength{\itemsep}{4pt}
+  \item The hybrid QPINN trains end to end; the quantum layer is 0.076\% of all parameters.
+  \item The data-only model reaches validation MSE $1.58\times10^{-4}$. The physics term at weight 0.05 degraded pressure and temperature, a scaling problem to fix.
+  \item The full pipeline ran on IBM \texttt{ibm\_fez}: 500 jobs, 2.05 million shots, no failures.
+  \item Convergence, generalisation and cost advantages over classical PINN/PINO are hypotheses until the controlled ablations are done.
+  \item Report loss components and per-field errors. Aggregate scores hide failures.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{References}
+\footnotesize
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item Rahaman et al., \emph{On the spectral bias of neural networks}, ICML 2019.
+  \item Tancik et al., \emph{Fourier features let networks learn high frequency functions}, NeurIPS 2020.
+  \item P\'erez-Salinas et al., \emph{Data re-uploading for a universal quantum classifier}, Quantum (2020).
+  \item Wang, Teng, Perdikaris, \emph{Understanding and mitigating gradient pathologies in PINNs}, SIAM J. Sci. Comput. (2021).
+  \item Krishnapriyan et al., \emph{Characterizing possible failure modes in physics-informed neural networks}, NeurIPS 2021.
+  \item Li et al., \emph{Physics-informed neural operator for learning PDEs}, 2021.
+  \item Chapagain et al., \emph{Component-level evaluation of adaptive PINN training for CFD-oriented crystal growth simulation}, NeurIPS 2026 Sim2Science workshop.
+  \item Project reports: hybrid QPINN for Czochralski growth (HPC and IBM Quantum study, 2026); AutoFOAM agentic OpenFOAM workflow.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\centering
+\Large \textbf{Thank you}
+
+\vspace{0.5cm}
+\normalsize
+Questions?
+\end{frame}
+
+\end{document}
